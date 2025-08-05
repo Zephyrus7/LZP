@@ -13,11 +13,3 @@ Platformun temel amacı, sadece veriyi görselleştirmek değil, aynı zamanda o
 *   **Bağlama Özel Skorlama:** Her analizin (genel, marka bazlı, coğrafi) kendi bağlamı içinde adil ve doğru skorlar üretmesini sağlar.
 *   **Dinamik Karşılaştırma:** İki farklı tarih aralığının performansını veritabanından anlık veri çekerek karşılaştırır.
 *   **Veri Aktarım Aracı:** Farklı formatlardaki (.csv, .xlsx) ham verileri temizleyen, doğrulayan ve veritabanına aktaran merkezi bir script.
-
-## Teknik Yapı
-
-*   **Arayüz (Frontend):** R Shiny & `shinythemes`
-*   **Arka Plan (Backend):** R
-*   **Veri Manipülasyonu:** `dplyr`, `tidyr`
-*   **Veritabanı:** MySQL / MariaDB (Bağlantı için `pool` ve `DBI` paketleri)
-*   **Bağımlılık Yönetimi:** `renv`
