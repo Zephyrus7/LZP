@@ -2,7 +2,7 @@
 
 Bu proje, R Shiny üzerinde geliştirilmiş modüler bir iş zekası (BI) platformudur. Ham kargo verilerini merkezi bir MySQL veritabanından işleyerek, B2C ve B2B operasyonları için interaktif raporlar, skorlar ve stratejik içgörüler sunar.
 
-## Projenin Felsefesi
+## Proje Amacı
 
 Platformun temel amacı, sadece veriyi görselleştirmek değil, aynı zamanda operasyonel mükemmelliği artıracak eyleme dönüştürülebilir bilgiler sağlamaktır. En değerli ve özgün özelliği, düşük gönderi hacmine sahip birimlerin (firma/bölge) istatistiksel olarak yanıltıcı skorlar almasını engelleyen, bağlama duyarlı **Hacim Ayarlı Skorlama** mekanizmasıdır.
 
@@ -21,15 +21,3 @@ Platformun temel amacı, sadece veriyi görselleştirmek değil, aynı zamanda o
 *   **Veri Manipülasyonu:** `dplyr`, `tidyr`
 *   **Veritabanı:** MySQL / MariaDB (Bağlantı için `pool` ve `DBI` paketleri)
 *   **Bağımlılık Yönetimi:** `renv`
-
-## Nasıl Çalıştırılır?
-
-1.  **Depoyu Klonlayın:**
-    ```bash
-    git clone https://github.com/Zephyrus7/LZP.git
-    ```
-2.  **Bağımlılıkları Yükleyin:** Projeyi RStudio'da açın ve konsola `renv::restore()` yazarak projeye özel kütüphanelerin kurulmasını sağlayın.
-3.  **Veritabanını Kurun:** Merkezi bir MySQL sunucusunda `lojistik_db` adında bir veritabanı oluşturun. Gerekli tabloların şeması ileride eklenecektir.
-4.  **Konfigürasyonu Ayarlayın:** `config.yml` dosyasını kendi veritabanı bilgilerinizle güncelleyin.
-5.  **Veriyi Aktarın:** `00_Data_Migration_Tool.R` script'ini çalıştırarak ham veri dosyalarınızı seçin ve veritabanını doldurun.
-6.  **Uygulamayı Başlatın:** `app.R` dosyasını açın ve RStudio'da `Run App` butonuna tıklayın.
