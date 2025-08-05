@@ -1,4 +1,4 @@
-# app.R - DÜZELTİLMİŞ VE TAM HALİ (Sadece shinyjs ile Buton Manipülasyonu)
+# app.R - TAM HALİ (İçerik Alanları için Shimmer CSS'i Eklendi)
 
 #--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
 source("00_Config.R")
@@ -20,7 +20,7 @@ ui <- fluidPage(
 #--- 3. SUNUCU MANTIĞI (SERVER) ---
 server <- function(input, output, session) {
   
-  # ... (Uygulama başlangıç, login ve UI render kodları aynı kalır) ...
+  # ... (Uygulama başlangıç, login kodları aynı kalır) ...
   try({
     user_count <- dbGetQuery(db_pool, "SELECT COUNT(*) AS n FROM kullanicilar")
     if (user_count$n == 0) {
@@ -91,11 +91,42 @@ server <- function(input, output, session) {
       header = tagList(
         shinyjs::useShinyjs(),
         tags$head(tags$style(HTML("
-          /* Stil kodları aynı kalır */
+          /* Mevcut Navbar Stil Kodları */
           .navbar-default { background-color: #4A545C !important; border-color: #3E464D !important; } .navbar-default .navbar-brand { color: #ffffff; } .navbar-default .navbar-brand:hover, .navbar-default .navbar-brand:focus { color: #f1f1f1; } .navbar-default .navbar-nav > li > a { color: #d1d1d1; } .navbar-default .navbar-nav > .active > a, .navbar-default .navbar-nav > .active > a:hover, .navbar-default .navbar-nav > .active > a:focus { color: #ffffff; background-color: #3E464D; } .navbar-default .navbar-nav > li > a:hover, .navbar-default .navbar-nav > li > a:focus { color: #ffffff; background-color: #5a626a; }
+          
+          /* Mevcut Buton Animasyon Stili */
           .btn-loading { position: relative; opacity: 0.85; cursor: not-allowed !important; }
-          .btn-loading::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0) 100%); animation: shimmer 1.5s infinite; border-radius: inherit; }
-          @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+          .btn-loading::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.75) 75%, rgba(255,255,255,1) 100%); animation: shimmer 1.5s infinite; border-radius: inherit; }
+          
+          /* =================================================================== */
+          /*         >>> YENİ EKLENEN STİL: İÇERİK YER TUTUCU ANİMASYONU <<<      */
+          /* =================================================================== */
+          .shimmer-placeholder {
+            background-color: #e9ecef; /* Yer tutucunun soluk gri rengi */
+            position: relative;
+            overflow: hidden;
+            border-radius: 4px;
+          }
+          .shimmer-placeholder::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image: linear-gradient(90deg, 
+                rgba(255,255,255,0) 0%, 
+                rgba(255,255,255,0.25) 25%,
+                rgba(255,255,255,0.75) 50%,
+                rgba(255,255,255,0.25) 70%, 
+                rgba(255,255,255,0) 100%
+            );
+            animation: shimmer 1.25s infinite;
+          }
+
+          /* Anahtar Kare Animasyonu (Hem buton hem içerik için ortak) */
+          @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
         ")))
       ),
       tabPanel("Giriş ve Ayarlar", icon = icon("cog"),
@@ -124,23 +155,16 @@ server <- function(input, output, session) {
   observeEvent(input$analiz_baslat, {
     req(rv$user_authenticated)
     
-    # =========================================================================
-    #                   >>> DÜZELTİLMİŞ BLOK BURASI <<<
-    # =========================================================================
-    # 1. Butonu güncelle: Çakışmayı önlemek için SADECE shinyjs kullan.
-    #    Metni shinyjs::html() ile değiştir. İkon güncellemesi kaldırıldı.
-    original_html <- "Analizi Başlat" # Orijinal metni (ikon olmadan) sakla
+    original_html <- "Analizi Başlat" 
     shinyjs::html("analiz_baslat", "Analiz Yapılıyor...")
     shinyjs::disable("analiz_baslat")
     shinyjs::addClass("analiz_baslat", "btn-loading")
     
-    # 2. İşlem bittiğinde, yine SADECE shinyjs kullanarak butonu normale döndür.
     on.exit({
       shinyjs::html("analiz_baslat", original_html)
       shinyjs::removeClass("analiz_baslat", "btn-loading")
       shinyjs::enable("analiz_baslat")
     })
-    # =========================================================================
     
     if(length(rv$active_tabs) > 0) { lapply(rv$active_tabs, function(tab_val) removeTab(inputId = "main_navbar", target = tab_val)); rv$active_tabs <- character(0) }
     rv$data <- NULL

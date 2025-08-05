@@ -1,4 +1,14 @@
-# ui_b2c.R - GÜNCELLENMİŞ VE TAM HALİ (Jargon Kaldırıldı)
+# ui_b2c.R - TAM HALİ (Firma Karnesi için Shimmer Placeholder Eklendi)
+
+# =========================================================================
+#                   >>> YARDIMCI FONKSİYON <<<
+# =========================================================================
+# Tekrar tekrar aynı div kodunu yazmamak için bir yardımcı fonksiyon.
+shimmer_placeholder <- function(height = "100px", width = "100%") {
+  div(class = "shimmer-placeholder", style = paste0("height: ", height, "; width: ", width, ";"))
+}
+# =========================================================================
+
 
 ui_b2c <- function(id) {
   ns <- NS(id)
@@ -13,11 +23,7 @@ ui_b2c <- function(id) {
                             h4("Ağırlık Toplamı:"), 
                             h3(textOutput(ns("agirlik_toplami"))),
                             hr(),
-                            
-                            # === DEĞİŞİKLİK BURADA ===
                             h4("Hacim Ayarlı Skorlama Ayarları"),
-                            # ========================
-                            
                             p(tags$small(em("Bu ayarlar, düşük gönderi hacmine sahip firmaların skorlarını daha adil ve istatistiksel olarak anlamlı hale getirmek için kullanılır."))),
                             sliderInput(ns("guven_esigi_v"), label = "1. Minimum Güven Eşiği (v_eşik):", min = 0, max = 5000, value = 1500, step = 50),
                             p(tags$small("Bir firmanın 'Güvenilir' kabul edilmesi için gereken minimum gönderi sayısı. Bu sayının altındaki firmalar 'Güvenilmez Bölge'de kabul edilir ve skorları Taban Puana doğru çekilir.")),
@@ -31,7 +37,6 @@ ui_b2c <- function(id) {
                          DT::dataTableOutput(ns("simulator_tablosu")))
              )
     ),
-    # ... (Diğer sekmelerde değişiklik yok)
     tabPanel("İlçe Karşılaştırma", icon = icon("map-marked-alt"),
              fluidRow(
                column(4, wellPanel(h4("Analiz Yapılacak Bölge"), uiOutput(ns("sehir_secimi_ui")), uiOutput(ns("ilce_secimi_ui")))),
@@ -49,16 +54,42 @@ ui_b2c <- function(id) {
                ),
                mainPanel(width=9,
                          h3(textOutput(ns("firma_karne_basligi"))),
-                         conditionalPanel(condition = "output.show_karne_panel", ns = ns,
-                                          radioButtons(ns("karne_siralama_tipi"), "Grafik Gösterimi:", choices = c("En İyi Performans" = "iyi", "En Kötü Performans" = "kotu"), selected = "iyi", inline = TRUE),
-                                          plotOutput(ns("firma_karne_grafigi"), height = "450px"),
-                                          hr(),
-                                          DT::dataTableOutput(ns("firma_karne_tablosu"))
+                         
+                         # ===================================================================
+                         #          >>> UI DEĞİŞİKLİĞİ BURADA: YER TUTUCULAR EKLENDİ <<<
+                         # ===================================================================
+                         # Başlangıçta bu yer tutucular görünür.
+                         div(id = ns("placeholder_karne_grafik"), 
+                             br(), # biraz boşluk bırakmak için
+                             shimmer_placeholder(height = "450px")
                          ),
-                         conditionalPanel(condition = "!output.show_karne_panel", ns = ns,
-                                          div(style = "text-align: center; padding-top: 50px; padding-bottom: 50px; border: 1px dashed #ccc; background-color: #f9f9f9;",
-                                              h4("Bu bölge için seçilmiş kargo şirketine ait veri bulunmamaktadır."))
+                         div(id = ns("placeholder_karne_tablo"), 
+                             br(),
+                             shimmer_placeholder(height = "300px")
+                         ),
+                         
+                         # Bu div'ler başlangıçta gizli olacak. Server bunları gösterecek.
+                         shinyjs::hidden(
+                           div(id = ns("content_karne_grafik"),
+                               radioButtons(ns("karne_siralama_tipi"), "Grafik Gösterimi:", choices = c("En İyi Performans" = "iyi", "En Kötü Performans" = "kotu"), selected = "iyi", inline = TRUE),
+                               plotOutput(ns("firma_karne_grafigi"), height = "450px")
+                           )
+                         ),
+                         shinyjs::hidden(
+                           div(id = ns("content_karne_tablo"),
+                               hr(),
+                               DT::dataTableOutput(ns("firma_karne_tablosu"))
+                           )
+                         ),
+                         
+                         # Veri bulunamadığında gösterilecek panel
+                         shinyjs::hidden(
+                           div(id = ns("panel_karne_veri_yok"),
+                               style = "text-align: center; padding-top: 50px; padding-bottom: 50px; border: 1px dashed #ccc; background-color: #f9f9f9;",
+                               h4("Bu bölge için seçilmiş kargo şirketine ait veri bulunmamaktadır.")
+                           )
                          )
+                         # ===================================================================
                )
              )
     ),
@@ -87,36 +118,13 @@ ui_b2c <- function(id) {
              sidebarLayout(
                sidebarPanel(width = 3,
                             h4("1. Ana Dönemi Seçin (Eski Dönem)"),
-                            dateRangeInput(ns("ana_donem_secimi"),
-                                           label = NULL,
-                                           start = floor_date(Sys.Date() %m-% months(2), "month"),
-                                           end = ceiling_date(Sys.Date() %m-% months(2), "month") - 1,
-                                           format = "dd-mm-yyyy",
-                                           separator = " - ",
-                                           language = "tr"),
+                            dateRangeInput(ns("ana_donem_secimi"), label = NULL, start = floor_date(Sys.Date() %m-% months(2), "month"), end = ceiling_date(Sys.Date() %m-% months(2), "month") - 1, format = "dd-mm-yyyy", separator = " - ", language = "tr"),
                             hr(),
                             h4("2. Karşılaştırma Dönemini Seçin (Yeni Dönem)"),
-                            dateRangeInput(ns("karsilastirma_donem_secimi"),
-                                           label = NULL,
-                                           start = floor_date(Sys.Date() %m-% months(1), "month"),
-                                           end = ceiling_date(Sys.Date() %m-% months(1), "month") - 1,
-                                           format = "dd-mm-yyyy",
-                                           separator = " - ",
-                                           language = "tr"),
+                            dateRangeInput(ns("karsilastirma_donem_secimi"), label = NULL, start = floor_date(Sys.Date() %m-% months(1), "month"), end = ceiling_date(Sys.Date() %m-% months(1), "month") - 1, format = "dd-mm-yyyy", separator = " - ", language = "tr"),
                             hr(),
                             h4("3. Tabloya Eklenecek Metrikleri Seçin"),
-                            selectInput(
-                              ns("secilen_metrikler"),
-                              label = NULL,
-                              choices = c(
-                                "Hacim" = "toplam_gonderi_sayisi",
-                                "Ortalama Teslim Süresi (Saat)" = "ortalama_teslim_suresi",
-                                "Başarı Oranı" = "dinamik_basari_orani",
-                                "Şikayet Oranı (%)" = "sikayet_orani_yuzde"
-                              ),
-                              multiple = TRUE,
-                              selected = "toplam_gonderi_sayisi"
-                            ),
+                            selectInput(ns("secilen_metrikler"), label = NULL, choices = c("Hacim" = "toplam_gonderi_sayisi", "Ortalama Teslim Süresi (Saat)" = "ortalama_teslim_suresi", "Başarı Oranı" = "dinamik_basari_orani", "Şikayet Oranı (%)" = "sikayet_orani_yuzde"), multiple = TRUE, selected = "toplam_gonderi_sayisi"),
                             hr(), 
                             actionButton(ns("karsilastir_button"), "VERİLERİ KARŞILAŞTIR", icon = icon("exchange-alt"), class = "btn-success btn-lg btn-block")
                ),
