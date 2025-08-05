@@ -4,7 +4,7 @@ Bu proje, R Shiny üzerinde geliştirilmiş modüler bir iş zekası (BI) platfo
 
 ## Proje Amacı
 
-Platformun temel amacı, sadece veriyi görselleştirmek değil, aynı zamanda operasyonel mükemmelliği artıracak eyleme dönüştürülebilir bilgiler sağlamaktır. En değerli ve özgün özelliği, düşük gönderi hacmine sahip birimlerin (firma/bölge) istatistiksel olarak yanıltıcı skorlar almasını engelleyen, bağlama duyarlı **Hacim Ayarlı Skorlama** mekanizmasıdır.
+Platformun temel amacı, sadece veriyi görselleştirmek değil, aynı zamanda operasyonel mükemmelliği artıracak eyleme dönüştürülebilir bilgiler sağlamaktır
 
 ## Temel Yetenekler
 
