@@ -1,0 +1,12 @@
+name: lojistik-zeka-platformu-demo
+title: lojistik-zeka-platformu-demo
+username: lojistikzekademo
+account: lojistikzekademo
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 15113752
+bundleId: 10662036
+url: https://lojistikzekademo.shinyapps.io/lojistik-zeka-platformu-demo/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE

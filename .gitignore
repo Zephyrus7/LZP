@@ -1,0 +1,14 @@
+# Hassas bilgileri içeren konfigürasyon dosyası
+config.yml
+
+# R 'renv' kütüphane klasörü
+renv/
+
+# RStudio proje dosyası ve kişisel ayarlar
+*.Rproj
+.Rproj.user/
+
+# R çalışma ortamı ve geçmişi
+.RData
+.Rhistory
+
