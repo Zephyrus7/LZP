@@ -1,3 +1,5 @@
+# lintr.yml - renv::restore() komutu en güncel ve basit haliyle kullanıldı
+
 name: lintr
 
 on:
@@ -42,14 +44,15 @@ jobs:
           key: ${{ runner.os }}-${{ hashFiles('renv.lock') }}
           restore-keys: ${{ runner.os }}-
 
+      # ===================================================================
+      #               >>> DEĞİŞİKLİK BURADA <<<
+      # ===================================================================
+      # renv::restore() fonksiyonunu gereksiz argümanlar olmadan,
+      # en basit ve modern haliyle çağırıyoruz.
       - name: Restore renv packages
+        run: renv::restore()
         shell: Rscript {0}
-        run: |
-          options(renv.consent = TRUE)
-          renv::restore(
-            type = "all",
-            prompt = FALSE
-          )
+      # ===================================================================
 
       - name: Run lintr
         run: lintr::lint_dir(".", linters = lintr::default_linters)
