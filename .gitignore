@@ -1,4 +1,3 @@
-# Önceki kurallar
 config.yml
 *.Rproj
 .Rproj.user/
@@ -6,9 +5,7 @@ config.yml
 .Rhistory
 Kaynak Dosyalar/
 
-# renv TAVSİYESİ:
-# renv klasörünün kendisini değil,
-# içindeki büyük kütüphane klasörlerini yoksay.
+
 renv/library/
 renv/staging/
 renv/temp/

@@ -1,15 +1,11 @@
-# 00_Config.R - Sadeleştirilmiş ve Nihai Hali
-
-# Temel Shiny ve Veri Manipülasyon Kütüphaneleri
 library(shiny)
 library(shinythemes)
-library(shinyjs)      # <-- Sadece bu gerekli
+library(shinyjs)
 library(dplyr)
 library(tidyr)
 library(lubridate)
 library(stringr)
 
-# Diğer Gerekli Kütüphaneler
 library(readxl)
 library(openxlsx)
 library(readr)
@@ -23,4 +19,3 @@ library(pool)
 library(config)   
 library(bcrypt)   
 
-# KALDIRILANLAR: promises, future, shinyLottie, lottieR ve plan() komutu kaldırıldı.

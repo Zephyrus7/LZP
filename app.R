@@ -1,4 +1,4 @@
-# app.R - TAM HALİ (İçerik Alanları için Shimmer CSS'i Eklendi)
+# app.R - TAM HALİ (Buton Görünümü İyileştirildi ve Hatalar Düzeltildi)
 
 #--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
 source("00_Config.R")
@@ -20,7 +20,10 @@ ui <- fluidPage(
 #--- 3. SUNUCU MANTIĞI (SERVER) ---
 server <- function(input, output, session) {
   
-  # ... (Uygulama başlangıç, login kodları aynı kalır) ...
+  # Session namespace'i alıyoruz, bu en iyi pratiktir.
+  ns <- session$ns
+  
+  # ... (Uygulama başlangıç, login, db_date_range kodları aynı kalır) ...
   try({
     user_count <- dbGetQuery(db_pool, "SELECT COUNT(*) AS n FROM kullanicilar")
     if (user_count$n == 0) {
@@ -49,16 +52,16 @@ server <- function(input, output, session) {
   
   login_dialog <- modalDialog(
     title = "Lojistik Zeka Platformu - Giriş",
-    textInput(session$ns("login_username"), "Kullanıcı Adı"),
-    passwordInput(session$ns("login_password"), "Şifre"),
+    textInput(ns("login_username"), "Kullanıcı Adı"),
+    passwordInput(ns("login_password"), "Şifre"),
     tags$script(HTML(sprintf("
       $(document).on('keyup', function(e) {
         if ($('#shiny-modal').is(':visible') && (e.which == 13)) {
           $('#%s').click();
         }
       });
-    ", session$ns("login_button")))),
-    footer = tagList(actionButton(session$ns("login_button"), "Giriş Yap", class = "btn-primary")),
+    ", ns("login_button")))),
+    footer = tagList(actionButton(ns("login_button"), "Giriş Yap", class = "btn-primary")),
     easyClose = FALSE
   )
   showModal(login_dialog)
@@ -91,41 +94,36 @@ server <- function(input, output, session) {
       header = tagList(
         shinyjs::useShinyjs(),
         tags$head(tags$style(HTML("
-          /* Mevcut Navbar Stil Kodları */
+          /* Mevcut stiller... */
           .navbar-default { background-color: #4A545C !important; border-color: #3E464D !important; } .navbar-default .navbar-brand { color: #ffffff; } .navbar-default .navbar-brand:hover, .navbar-default .navbar-brand:focus { color: #f1f1f1; } .navbar-default .navbar-nav > li > a { color: #d1d1d1; } .navbar-default .navbar-nav > .active > a, .navbar-default .navbar-nav > .active > a:hover, .navbar-default .navbar-nav > .active > a:focus { color: #ffffff; background-color: #3E464D; } .navbar-default .navbar-nav > li > a:hover, .navbar-default .navbar-nav > li > a:focus { color: #ffffff; background-color: #5a626a; }
-          
-          /* Mevcut Buton Animasyon Stili */
           .btn-loading { position: relative; opacity: 0.85; cursor: not-allowed !important; }
           .btn-loading::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.75) 75%, rgba(255,255,255,0.875) 100%); animation: shimmer 1.5s infinite; border-radius: inherit; }
+          .shimmer-placeholder { background-color: #e9ecef; position: relative; overflow: hidden; border-radius: 4px; }
+          .shimmer-placeholder::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.75) 50%, rgba(255,255,255,0.25) 70%, rgba(255,255,255,0) 100%); animation: shimmer 1.25s infinite; }
+          @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
           
           /* =================================================================== */
-          /*         >>> YENİ EKLENEN STİL: İÇERİK YER TUTUCU ANİMASYONU <<<      */
+          /*            >>> İLERLEME ÇUBUĞU BUTONU İÇİN STİLLER <<<              */
           /* =================================================================== */
-          .shimmer-placeholder {
-            background-color: #e9ecef; /* Yer tutucunun soluk gri rengi */
-            position: relative;
-            overflow: hidden;
-            border-radius: 4px;
+          .btn-progress-container { 
+            position: relative; 
+            text-align: center; 
+            color: white !important; 
+            overflow: hidden; 
+            text-transform: none !important; /* YENİ: Büyük harf dönüşümünü engeller */
           }
-          .shimmer-placeholder::after {
-            content: '';
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background-image: linear-gradient(90deg, 
-                rgba(255,255,255,0) 0%, 
-                rgba(255,255,255,0.25) 25%,
-                rgba(255,255,255,0.75) 50%,
-                rgba(255,255,255,0.25) 70%, 
-                rgba(255,255,255,0) 100%
-            );
-            animation: shimmer 1.25s infinite;
+          .btn-progress-fill { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            height: 100%; 
+            width: 0%; 
+            background-color: rgba(0, 0, 0, 0.2); 
+            transition: width 0.25s ease-in-out; 
           }
-
-          /* Anahtar Kare Animasyonu (Hem buton hem içerik için ortak) */
-          @keyframes shimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
+          .btn-progress-text { 
+            position: relative; 
+            z-index: 1; 
           }
         ")))
       ),
@@ -135,12 +133,21 @@ server <- function(input, output, session) {
                         h3("Analiz Ayarları"),
                         wellPanel(
                           h4("1. Analiz Modunu Seçin"),
-                          radioButtons("analiz_modu", label = NULL, choices = c("Statik Analiz" = "statik", "Canlı Analiz" = "canli"), selected = "statik", inline = TRUE),
+                          radioButtons(ns("analiz_modu"), label = NULL, choices = c("Statik Analiz" = "statik", "Canlı Analiz" = "canli"), selected = "statik", inline = TRUE),
                           hr(),
-                          conditionalPanel( "input.analiz_modu == 'statik'", h4("2. Analiz Veri Kapsamını Seçin"), radioButtons("statik_veri_secimi", label = NULL, choices = c("Tüm Veri" = "tumu", "Tarih Aralığı Seç" = "tarih_sec"), selected = "tumu", inline = TRUE), p(tags$small(em(textOutput("db_date_range_display")))), conditionalPanel( condition = "input.statik_veri_secimi == 'tarih_sec'", dateRangeInput("tarih_araligi", label = "Başlangıç - Bitiş Tarihi", start = floor_date(Sys.Date(), "year"), end = Sys.Date(), format = "dd-mm-yyyy", language = "tr") ), hr(), h4("3. Analiz Tipini Seçin"), radioButtons("analiz_tipi_statik", label = NULL, choices = c("Bireysel (B2C)" = "B2C", "Kurumsal (B2B)" = "B2B"), inline = TRUE) ),
-                          conditionalPanel( "input.analiz_modu == 'canli'", h4("2. Analiz Tipini Seçin"), radioButtons("analiz_tipi_canli", label = NULL, choices = c("Bireysel (B2C)" = "B2C", "Kurumsal (B2B)" = "B2B"), inline = TRUE), p(tags$small("Bu modül, veritabanındaki en güncel verileri kullanarak anlık bir analiz sunar.")) ),
+                          conditionalPanel( "input.analiz_modu == 'statik'", h4("2. Analiz Veri Kapsamını Seçin"), radioButtons(ns("statik_veri_secimi"), label = NULL, choices = c("Tüm Veri" = "tumu", "Tarih Aralığı Seç" = "tarih_sec"), selected = "tumu", inline = TRUE), p(tags$small(em(textOutput(ns("db_date_range_display"))))), conditionalPanel( condition = "input.statik_veri_secimi == 'tarih_sec'", dateRangeInput(ns("tarih_araligi"), label = "Başlangıç - Bitiş Tarihi", start = floor_date(Sys.Date(), "year"), end = Sys.Date(), format = "dd-mm-yyyy", language = "tr") ), hr(), h4("3. Analiz Tipini Seçin"), radioButtons(ns("analiz_tipi_statik"), label = NULL, choices = c("Bireysel (B2C)" = "B2C", "Kurumsal (B2B)" = "B2B"), inline = TRUE) ),
+                          conditionalPanel( "input.analiz_modu == 'canli'", h4("2. Analiz Tipini Seçin"), radioButtons(ns("analiz_tipi_canli"), label = NULL, choices = c("Bireysel (B2C)" = "B2C", "Kurumsal (B2B)" = "B2B"), inline = TRUE), p(tags$small("Bu modül, veritabanındaki en güncel verileri kullanarak anlık bir analiz sunar.")) ),
                           hr(),
-                          actionButton("analiz_baslat", "Analizi Başlat", icon = icon("rocket"), class = "btn-primary btn-lg btn-block")
+                          
+                          # >>> DEĞİŞİKLİK: btn-lg kaldırıldı, style etiketi güncellendi
+                          div(
+                            id = ns("analiz_baslat_container"),
+                            onclick = sprintf("Shiny.setInputValue('%s', Math.random(), {priority: 'event'})", ns("analiz_baslat")),
+                            class = "btn btn-primary btn-block btn-progress-container", 
+                            style = "padding: 8px 12px; font-size: 15px; line-height: 3; border-radius: 6px;", 
+                            div(class = "btn-progress-fill", id=ns("progress_fill")),
+                            span(class = "btn-progress-text", id=ns("progress_text"), "Analizi Başlat")
+                          )
                         )
                  ),
                  column(8, h3("Platforma Hoş Geldiniz!"), p("Bu platform, B2C ve B2B kargo operasyonlarınızı merkezi veritabanından analiz etmenizi sağlar."), tags$ol( tags$li("Sol taraftan bir analiz modu (Statik veya Canlı) seçin."), tags$li("Seçiminize göre beliren ayarları (veri kapsamı, tarih aralığı gibi) yapın ve analiz tipini belirleyin."), tags$li("'Analizi Başlat' butonuna tıklayarak seçtiğiniz modda analizi başlatın."), tags$li("Analiz tamamlandığında, sonuçları inceleyebileceğiniz yeni sekmeler eklenecektir.") ) )
@@ -155,20 +162,36 @@ server <- function(input, output, session) {
   observeEvent(input$analiz_baslat, {
     req(rv$user_authenticated)
     
-    original_html <- "Analizi Başlat" 
-    shinyjs::html("analiz_baslat", "Analiz Yapılıyor...")
-    shinyjs::disable("analiz_baslat")
-    shinyjs::addClass("analiz_baslat", "btn-loading")
+    # --- 1. BUTONU "ÇALIŞIYOR" MODUNA AL ---
+    shinyjs::addClass(id = "analiz_baslat_container", class = "btn-loading") 
+    shinyjs::runjs(sprintf("$('#%s').css('pointer-events', 'none');", ns("analiz_baslat_container"))) 
+    shinyjs::html(id = "progress_text", html = "Başlatılıyor...") 
+    shinyjs::runjs(sprintf("$('#%s').css('width', '0%%');", ns("progress_fill")))
     
+    # --- 2. İŞLEM BİTİNCE BUTONU ESKİ HALİNE GETİR ---
     on.exit({
-      shinyjs::html("analiz_baslat", original_html)
-      shinyjs::removeClass("analiz_baslat", "btn-loading")
-      shinyjs::enable("analiz_baslat")
+      shinyjs::html(id = "progress_text", html = "Analizi Başlat")
+      shinyjs::removeClass(id = "analiz_baslat_container", class = "btn-loading")
+      shinyjs::runjs(sprintf("$('#%s').css('pointer-events', 'auto');", ns("analiz_baslat_container")))
+      
+      shinyjs::runjs(sprintf("$('#%s').css('width', '100%%');", ns("progress_fill")))
+      Sys.sleep(0.5)
+      shinyjs::runjs(sprintf("$('#%s').css('width', '0%%');", ns("progress_fill")))
     })
     
+    # --- 3. ÖNCEKİ SONUÇLARI TEMİZLE ---
     if(length(rv$active_tabs) > 0) { lapply(rv$active_tabs, function(tab_val) removeTab(inputId = "main_navbar", target = tab_val)); rv$active_tabs <- character(0) }
     rv$data <- NULL
     
+    # --- 4. YENİ İLERLEME FONKSİYONUNU TANIMLA ---
+    custom_progress_updater <- function(amount, detail = NULL) {
+      if(!is.null(detail)){
+        shinyjs::html(selector = paste0("#", ns("progress_text")), html = detail)
+      }
+      shinyjs::runjs(sprintf("$('#%s').css('width', '%f%%');", ns("progress_fill"), amount * 100))
+    }
+    
+    # --- 5. ANALİZ SÜRECİNİ YENİ FONKSİYONLA ÇALIŞTIR ---
     if (input$analiz_modu == "statik") {
       local_start_date <- NULL
       local_end_date <- NULL
@@ -185,25 +208,26 @@ server <- function(input, output, session) {
         local_start_date <- as.Date(db_date_range$min_date)
         local_end_date <- as.Date(db_date_range$max_date)
       }
-      withProgress(message = 'Veritabanından Veri Çekiliyor...', value = 0, {
-        analiz_tipi <- input$analiz_tipi_statik
-        analysis_result <- NULL
-        if(analiz_tipi == "B2C") {
-          rv$tip <- "B2C"
-          analysis_result <- analiz_et_ve_skorla_b2c(db_pool = db_pool, start_date = local_start_date, end_date = local_end_date, progress_updater = incProgress)
-        } else if (analiz_tipi == "B2B") {
-          rv$tip <- "B2B"
-          analysis_result <- analiz_et_ve_skorla_b2b(db_pool = db_pool, start_date = local_start_date, end_date = local_end_date, progress_updater = incProgress)
-        }
-        if (!is.null(analysis_result)) { 
-          analysis_result$tarih_araligi <- c(local_start_date, local_end_date)
-        }
-        rv$data <- analysis_result
-      })
+      
+      analiz_tipi <- input$analiz_tipi_statik
+      analysis_result <- NULL
+      if(analiz_tipi == "B2C") {
+        rv$tip <- "B2C"
+        analysis_result <- analiz_et_ve_skorla_b2c(db_pool = db_pool, start_date = local_start_date, end_date = local_end_date, progress_updater = custom_progress_updater)
+      } else if (analiz_tipi == "B2B") {
+        rv$tip <- "B2B"
+        analysis_result <- analiz_et_ve_skorla_b2b(db_pool = db_pool, start_date = local_start_date, end_date = local_end_date, progress_updater = custom_progress_updater)
+      }
+      if (!is.null(analysis_result)) { 
+        analysis_result$tarih_araligi <- c(local_start_date, local_end_date)
+      }
+      rv$data <- analysis_result
+      
     } else if (input$analiz_modu == "canli") {
       showNotification("Canlı Analiz modu henüz geliştirme aşamasındadır.", type = "warning", duration = 8); return()
     }
     
+    # --- 6. SONUÇLARI GÖSTER ---
     if (!is.null(rv$data)) {
       tab_list <- list()
       if (rv$tip == "B2C") { tab_list <- ui_b2c("b2c_modul") } else if (rv$tip == "B2B") { tab_list <- ui_b2b("b2b_modul") }
@@ -211,7 +235,7 @@ server <- function(input, output, session) {
       rv$active_tabs <- c(rv$active_tabs, sapply(tab_list, function(t) t$attribs$title))
       if (rv$tip == "B2C") { updateNavbarPage(session, "main_navbar", selected = "Ağırlık Simülatörü") } else if (rv$tip == "B2B") { updateNavbarPage(session, "main_navbar", selected = "Kargo Firması Karnesi") }
       download_tab_value <- "download_tab"
-      appendTab(inputId = "main_navbar", tabPanel(title = "Veri İndir", value = download_tab_value, icon = icon("download"), sidebarLayout(sidebarPanel(h4("İndirme Seçenekleri"), uiOutput("download_options_ui"), hr(), downloadButton("download_data_button", "Seçilen Verileri İndir (.xlsx)", class="btn-success btn-block")), mainPanel(h3("Veri Raporlarını İndirin"), p("Sol taraftaki menüden indirmek istediğiniz raporları seçin.")))))
+      appendTab(inputId = "main_navbar", tabPanel(title = "Veri İndir", value = download_tab_value, icon = icon("download"), sidebarLayout(sidebarPanel(h4("İndirme Seçenekleri"), uiOutput(ns("download_options_ui")), hr(), downloadButton(ns("download_data_button"), "Seçilen Verileri İndir (.xlsx)", class="btn-success btn-block")), mainPanel(h3("Veri Raporlarını İndirin"), p("Sol taraftaki menüden indirmek istediğiniz raporları seçin.")))))
       rv$active_tabs <- c(rv$active_tabs, download_tab_value)
     }
   })
@@ -232,7 +256,7 @@ server <- function(input, output, session) {
   output$download_options_ui <- renderUI({
     req(rv$user_authenticated, rv$tip)
     choices_list <- if(rv$tip == "B2C") { c("Temel Analiz Sonuçları ve Skorlar" = "b2c_sonuclar", "Aykırı Değer Raporu" = "b2c_aykiri", "Bölgesel Hız Karşılaştırma Raporu" = "b2c_hiz_raporu") } else { c("B2B Ana Analiz Verisi" = "b2b_main") }
-    checkboxGroupInput("download_choices", "İndirilecek Raporları Seçin:", choices = choices_list, selected = choices_list)
+    checkboxGroupInput(ns("download_choices"), "İndirilecek Raporları Seçin:", choices = choices_list, selected = choices_list)
   })
   output$download_data_button <- downloadHandler(
     filename = function() { req(rv$user_authenticated); paste0("Lojistik_Raporu_", rv$tip, "_", Sys.Date(), ".xlsx") },
