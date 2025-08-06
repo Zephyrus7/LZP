@@ -96,7 +96,7 @@ server <- function(input, output, session) {
           
           /* Mevcut Buton Animasyon Stili */
           .btn-loading { position: relative; opacity: 0.85; cursor: not-allowed !important; }
-          .btn-loading::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.75) 75%, rgba(255,255,255,1) 100%); animation: shimmer 1.5s infinite; border-radius: inherit; }
+          .btn-loading::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.75) 75%, rgba(255,255,255,0.875) 100%); animation: shimmer 1.5s infinite; border-radius: inherit; }
           
           /* =================================================================== */
           /*         >>> YENİ EKLENEN STİL: İÇERİK YER TUTUCU ANİMASYONU <<<      */
