@@ -1,14 +1,15 @@
-# Hassas bilgileri içeren konfigürasyon dosyası
+# Önceki kurallar
 config.yml
-
-# R 'renv' kütüphane klasörü
-renv/
-
-# RStudio proje dosyası ve kişisel ayarlar
 *.Rproj
 .Rproj.user/
-
-# R çalışma ortamı ve geçmişi
 .RData
 .Rhistory
+Kaynak Dosyalar/
 
+# renv TAVSİYESİ:
+# renv klasörünün kendisini değil,
+# içindeki büyük kütüphane klasörlerini yoksay.
+renv/library/
+renv/staging/
+renv/temp/
+renv/cache/
