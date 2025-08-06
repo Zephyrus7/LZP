@@ -1,5 +1,3 @@
-# .Rprofile dosyasının yeni hali
-
 source("renv/activate.R")
 
 # Windows/Linux uyumluluğu için Türkçe locale ayarları

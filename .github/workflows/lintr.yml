@@ -1,4 +1,4 @@
-# lintr.yml - renv::load() ile R oturumunu doğru başlatan nihai çözüm
+# lintr.yml - Doğru renv.lock ile en basit ve standart workflow
 
 name: lintr
 
@@ -32,7 +32,7 @@ jobs:
       - name: Cache renv packages
         uses: actions/cache@v4
         with:
-          path: renv/library # Önbellek yolunu renv standardına göre güncelledik
+          path: renv/library
           key: ${{ runner.os }}-${{ hashFiles('renv.lock') }}
           restore-keys: ${{ runner.os }}-
 
@@ -40,18 +40,10 @@ jobs:
         run: renv::restore()
         shell: Rscript {0}
 
-      # ===================================================================
-      #               >>> DEĞİŞİKLİK BURADA <<<
-      # ===================================================================
-      # lintr'ı çalıştırmadan ÖNCE, renv::load() ile proje ortamını yüklüyoruz.
       - name: Run lintr
+        run: lintr::lint_dir(".", linters = lintr::default_linters)
         shell: Rscript {0}
-        run: |
-          renv::load()
-          lintr::lint_dir(".", linters = lintr::default_linters)
-          lintr::sarif_output(lintr::lint_dir("."), "lintr-results.sarif")
         continue-on-error: true
-      # ===================================================================
 
       - name: Upload analysis results to GitHub
         uses: github/codeql-action/upload-sarif@v3
