@@ -15,13 +15,13 @@ jobs:
   lintr:
     name: Run lintr scanning
     runs-on: ubuntu-latest
+    env:
+      R_PROFILE_USER: ".github/workflows/empty.Rprofile"
+
     permissions:
       contents: read
       security-events: write
       actions: read
-
-    env:
-      R_PROFILE_USER: ".github/workflows/empty.Rprofile"
 
     steps:
       - name: Checkout code
@@ -33,7 +33,7 @@ jobs:
           use-public-rspm: true
 
       - name: Install renv
-        run: install.packages("renv")
+        run: install.packages("renv", repos = "https://cloud.r-project.org")
         shell: Rscript {0}
 
       - name: Cache renv packages
