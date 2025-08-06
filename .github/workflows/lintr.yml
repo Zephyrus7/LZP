@@ -1,3 +1,5 @@
+# lintr.yml - Önce renv'i kuran, sonra restore eden nihai versiyon
+
 name: lintr
 
 on:
@@ -28,6 +30,15 @@ jobs:
         uses: r-lib/actions/setup-r@v2
         with:
           use-public-rspm: true
+
+      # ===================================================================
+      #               >>> DEĞİŞİKLİK BURADA BAŞLIYOR <<<
+      # ===================================================================
+      # Önce renv paketinin kendisini kuruyoruz.
+      - name: Install renv
+        run: install.packages("renv")
+        shell: Rscript {0}
+      # ===================================================================
 
       - name: Cache renv packages
         uses: actions/cache@v4
