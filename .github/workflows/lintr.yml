@@ -1,4 +1,4 @@
-# lintr.yml - Her adımda renv'i aktive eden nihai çözüm
+# lintr.yml - Doğru .gitignore yapısıyla en basit ve en doğru hali
 
 name: lintr
 
@@ -15,10 +15,6 @@ jobs:
   lintr:
     name: Run lintr scanning
     runs-on: ubuntu-latest
-    env:
-      R_PROFILE_USER: ".github/workflows/empty.Rprofile"
-      RENV_CONFIG_PAK_ENABLED: "FALSE"
-
     permissions:
       contents: read
       security-events: write
@@ -33,32 +29,13 @@ jobs:
         with:
           use-public-rspm: true
 
-      - name: Install renv
-        run: install.packages("renv", repos = "https://cloud.r-project.org")
-        shell: Rscript {0}
-
-      - name: Cache renv packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/share/renv
-          key: ${{ runner.os }}-${{ hashFiles('renv.lock') }}
-          restore-keys: ${{ runner.os }}-
-
       - name: Restore renv packages
         run: renv::restore()
         shell: Rscript {0}
 
-      # ===================================================================
-      #               >>> DEĞİŞİKLİK BURADA <<<
-      # ===================================================================
-      # lintr'ı çalıştırmadan ÖNCE, renv'i bu yeni R oturumu için aktive ediyoruz.
       - name: Run lintr
+        run: lintr::lint_dir(".", linters = lintr::default_linters)
         shell: Rscript {0}
-        run: |
-          source("renv/activate.R")
-          lintr::lint_dir(".", linters = lintr::default_linters)
-          lintr::sarif_output(lintr::lint_dir("."), "lintr-results.sarif") # sarif dosyasını oluştur
-      # ===================================================================
         continue-on-error: true
 
       - name: Upload analysis results to GitHub
