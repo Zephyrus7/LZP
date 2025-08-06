@@ -37,8 +37,12 @@ jobs:
           restore-keys: ${{ runner.os }}-
 
       - name: Restore renv packages
-        run: renv::restore()
         shell: Rscript {0}
+        run: |
+          options(renv.consent = TRUE)
+          renv::restore()
+        env:
+          R_PROFILE_USER: ".github/workflows/empty.Rprofile"
 
       - name: Run lintr
         run: lintr::lint_dir(".", linters = lintr::default_linters)
