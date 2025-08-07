@@ -1,4 +1,4 @@
-# ui_b2c.R - TAM HALİ (Firma Karnesi için Shimmer Placeholder Eklendi)
+# ui_b2c.R - TAM HALİ (Marka Analizi Sekmesi Eklendi)
 
 # =========================================================================
 #                   >>> YARDIMCI FONKSİYON <<<
@@ -54,21 +54,8 @@ ui_b2c <- function(id) {
                ),
                mainPanel(width=9,
                          h3(textOutput(ns("firma_karne_basligi"))),
-                         
-                         # ===================================================================
-                         #          >>> UI DEĞİŞİKLİĞİ BURADA: YER TUTUCULAR EKLENDİ <<<
-                         # ===================================================================
-                         # Başlangıçta bu yer tutucular görünür.
-                         div(id = ns("placeholder_karne_grafik"), 
-                             br(), # biraz boşluk bırakmak için
-                             shimmer_placeholder(height = "450px")
-                         ),
-                         div(id = ns("placeholder_karne_tablo"), 
-                             br(),
-                             shimmer_placeholder(height = "300px")
-                         ),
-                         
-                         # Bu div'ler başlangıçta gizli olacak. Server bunları gösterecek.
+                         div(id = ns("placeholder_karne_grafik"), br(), shimmer_placeholder(height = "450px")),
+                         div(id = ns("placeholder_karne_tablo"), br(), shimmer_placeholder(height = "300px")),
                          shinyjs::hidden(
                            div(id = ns("content_karne_grafik"),
                                radioButtons(ns("karne_siralama_tipi"), "Grafik Gösterimi:", choices = c("En İyi Performans" = "iyi", "En Kötü Performans" = "kotu"), selected = "iyi", inline = TRUE),
@@ -81,18 +68,33 @@ ui_b2c <- function(id) {
                                DT::dataTableOutput(ns("firma_karne_tablosu"))
                            )
                          ),
-                         
-                         # Veri bulunamadığında gösterilecek panel
                          shinyjs::hidden(
                            div(id = ns("panel_karne_veri_yok"),
                                style = "text-align: center; padding-top: 50px; padding-bottom: 50px; border: 1px dashed #ccc; background-color: #f9f9f9;",
                                h4("Bu bölge için seçilmiş kargo şirketine ait veri bulunmamaktadır.")
                            )
                          )
-                         # ===================================================================
                )
              )
     ),
+    # =========================================================================
+    # >>>>>>>>>>>> YENİ SEKME BURAYA EKLENDİ <<<<<<<<<<<<<<<
+    # =========================================================================
+    tabPanel("Marka Analizi", icon = icon("tags"),
+             sidebarLayout(
+               sidebarPanel(width = 3,
+                            h4("Marka Seçimi"),
+                            uiOutput(ns("marka_analizi_marka_filter_ui")),
+                            p(tags$small(em("Burada seçeceğiniz markanın B2C gönderilerinin, farklı kargo firmalarıyla olan performansını karşılaştırabilirsiniz.")))
+               ),
+               mainPanel(width = 9,
+                         h3(textOutput(ns("marka_analizi_baslik"))),
+                         hr(),
+                         DT::dataTableOutput(ns("marka_analizi_tablosu"))
+               )
+             )
+    ),
+    # =========================================================================
     tabPanel("Şikayet Analizi", icon = icon("exclamation-triangle"),
              sidebarLayout(
                sidebarPanel(width = 3,
