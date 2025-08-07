@@ -1,6 +1,5 @@
-# server_b2c.R - TAM HALİ (Dark Mode için Dinamik Grafik Temaları Eklendi)
+# server_b2c.R - TAM VE NİHAİ HALİ (Tüm Grafikler İçin Dark Mode Sorunları Kalıcı Olarak Giderildi)
 
-# >>> DEĞİŞİKLİK: Fonksiyon artık 'theme_reactive' argümanı alıyor
 server_b2c <- function(id, data, theme_reactive) {
   moduleServer(id, function(input, output, session) {
     b2b_turleri <- c("Mağazaya Teslim", "Mağazalar Arası Transfer", "21")
@@ -16,7 +15,7 @@ server_b2c <- function(id, data, theme_reactive) {
     aykiri_veriler <- reactive({ ana_veri()$aykiri_degerler })
     ham_veri_temiz <- reactive({ ana_veri()$ham_veri_temiz })
     
-    # --- UI RENDER FONKSİYONLARI ---
+    # --- UI RENDER FONKSİYONLARI (Değişiklik yok) ---
     output$sehir_secimi_ui <- renderUI({ req(ana_veri_skorlari()); sehir_listesi <- sort(unique(ana_veri_skorlari()$sehir)); selectInput(session$ns("sehir_secimi_tab1"), "1. Şehir Seçin:", choices = sehir_listesi) })
     output$ilce_secimi_ui <- renderUI({ req(input$sehir_secimi_tab1); ilce_secenekleri <- ana_veri_skorlari() %>% filter(sehir == input$sehir_secimi_tab1) %>% pull(ilce) %>% unique() %>% sort(); selectInput(session$ns("ilce_secimi_tab1"), "2. İlçe Seçin:", choices = c("Tüm İlçeler" = "all_districts", ilce_secenekleri)) })
     output$firma_secimi_ui <- renderUI({ req(ana_veri_skorlari()); firma_listesi <- sort(unique(ana_veri_skorlari()$kargo_turu)); selectInput(session$ns("secilen_firma_karne"), "1. Firma Seçin:", choices = firma_listesi) })
@@ -27,8 +26,7 @@ server_b2c <- function(id, data, theme_reactive) {
     output$il_secim_ui_aykiri <- renderUI({ req(aykiri_veriler()); il_listesi <- sort(unique(aykiri_veriler()$sehir)); selectInput(session$ns("aykiri_secilen_il"), "İl Seçin:", choices = il_listesi) })
     output$ilce_secim_ui_aykiri <- renderUI({ req(aykiri_veriler(), input$aykiri_secilen_il); ilce_listesi <- aykiri_veriler() %>% filter(sehir == input$aykiri_secilen_il) %>% pull(ilce) %>% unique() %>% sort(); selectInput(session$ns("aykiri_secilen_ilce"), "İlçe Seçin (Opsiyonel):", choices = c("Tüm İlçeler" = "all", ilce_listesi)) })
     
-    # --- REAKTİF HESAPLAMALAR ---
-    # Bu kısımlarda bir değişiklik yok, aynı kalıyor.
+    # --- REAKTİF HESAPLAMALAR (Değişiklik yok) ---
     dinamik_skorlar <- reactive({
       req(ana_veri_skorlari(), input$agirlik_performans, input$agirlik_hiz, input$agirlik_sikayet)
       toplam_agirlik <- input$agirlik_performans + input$agirlik_hiz + input$agirlik_sikayet
@@ -37,7 +35,6 @@ server_b2c <- function(id, data, theme_reactive) {
       ana_veri_skorlari() %>% mutate(Ham_EPS = (performans_puani * agirlik_p) + (hiz_puani * agirlik_h) + (musteri_deneyimi_puani * agirlik_s))
     })
     
-    # ... (ilce_karsilastirma_data, simulator_data vb. diğer tüm reaktif bloklar aynı kalacak) ...
     ilce_karsilastirma_data <- reactive({
       req(input$sehir_secimi_tab1, input$ilce_secimi_tab1, dinamik_skorlar(), input$guvenilirlik_esigi, input$guven_esigi_v, input$taban_puan_c)
       base_data <- dinamik_skorlar() %>% filter(sehir == input$sehir_secimi_tab1)
@@ -99,7 +96,6 @@ server_b2c <- function(id, data, theme_reactive) {
     karsilastirma_verisi <- reactiveVal(NULL)
     
     observeEvent(input$karsilastir_button, {
-      # Bu blokta bir değişiklik yok
       req(input$ana_donem_secimi, input$karsilastirma_donem_secimi)
       original_html <- "VERİLERİ KARŞILAŞTIR"
       shinyjs::html("karsilastir_button", "Hesaplanıyor...")
@@ -124,10 +120,8 @@ server_b2c <- function(id, data, theme_reactive) {
       })
     })
     
-    # --- TÜM OUTPUT'LAR ---
-    # Bu kısımlar aynı kalıyor, sadece renderPlot'lar değişiyor.
+    # --- OUTPUTS ---
     
-    # ... (Tablo ve metin output'ları aynı) ...
     output$karsilastirma_tablosu <- DT::renderDataTable({
       req(karsilastirma_verisi(), !is.null(input$secilen_metrikler) && length(input$secilen_metrikler) > 0)
       ham_veri <- karsilastirma_verisi()$data; ana_etiket <- karsilastirma_verisi()$ana_etiket; karsilastirma_etiket <- karsilastirma_verisi()$karsilastirma_etiket
@@ -157,19 +151,26 @@ server_b2c <- function(id, data, theme_reactive) {
     observe({ req(firma_karne_filtrelenmis_veri()); data_for_plot <- firma_karne_filtrelenmis_veri() %>% filter(toplam_gonderi_sayisi >= (input$min_hacim_karne %||% 0)); if (nrow(data_for_plot) > 0) { shinyjs::hide("placeholder_karne_grafik", anim = TRUE, animType = "fade"); shinyjs::show("content_karne_grafik", anim = TRUE, animType = "fade"); shinyjs::hide("placeholder_karne_tablo", anim = TRUE, animType = "fade"); shinyjs::show("content_karne_tablo", anim = TRUE, animType = "fade"); shinyjs::hide("panel_karne_veri_yok") } else { shinyjs::hide("placeholder_karne_grafik"); shinyjs::hide("placeholder_karne_tablo"); shinyjs::hide("content_karne_grafik"); shinyjs::hide("content_karne_tablo"); shinyjs::show("panel_karne_veri_yok", anim = TRUE, animType = "fade") } })
     output$firma_karne_basligi <- renderText({ req(input$secilen_firma_karne); paste(input$secilen_firma_karne, "Firmasının Anlık Bölgesel Performans Karnesi") })
     
-    # ========================================================== #
-    # >>> DEĞİŞİKLİK: Firma Karnesi Grafigi Temaya Duyarlı Hale Getirildi <<< #
-    # ========================================================== #
     output$firma_karne_grafigi <- renderPlot({
       req(firma_karne_filtrelenmis_veri(), input$karne_siralama_tipi, input$min_hacim_karne)
       df_processed <- firma_karne_filtrelenmis_veri() %>% filter(toplam_gonderi_sayisi >= input$min_hacim_karne) %>% mutate(il_ilce = str_to_upper(paste0(sehir, " - ", ilce), "tr"))
       n_rows_to_show <- min(15, nrow(df_processed))
       if(n_rows_to_show == 0) { return(ggplot() + theme_void()) }
       
-      plot_theme <- if (isTRUE(theme_reactive() == "dark")) {
-        theme_dark(base_size = 14) + theme(panel.grid.major.y = element_blank(), panel.grid.minor = element_blank())
+      if (isTRUE(theme_reactive() == "dark")) {
+        plot_theme <- theme_minimal(base_size = 14) + 
+          theme(
+            panel.background = element_rect(fill = "#343A40", color = NA),
+            plot.background = element_rect(fill = "#343A40", color = NA),
+            panel.grid.major.y = element_blank(),
+            panel.grid.major.x = element_line(color = "#495057"),
+            panel.grid.minor = element_blank(),
+            text = element_text(color = "#E9ECEF"),
+            axis.text = element_text(color = "#E9ECEF"),
+            title = element_text(color = "#FFFFFF")
+          )
       } else {
-        theme_minimal(base_size = 14)
+        plot_theme <- theme_minimal(base_size = 14)
       }
       
       if(input$karne_siralama_tipi == "iyi") {
@@ -187,26 +188,38 @@ server_b2c <- function(id, data, theme_reactive) {
       ggplot(df_plot, plot_aes) + geom_col(show.legend = FALSE) + coord_flip() + 
         labs(title = plot_title, x = "Bölge (İl - İlçe)", y = "Genel Skor (EPS)") + 
         plot_fill_scale + 
-        plot_theme + # Dinamik temayı uygula
+        plot_theme +
         scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 1))
-    })
+    }, bg = "transparent")
     
     output$firma_karne_tablosu <- DT::renderDataTable({ req(firma_karne_filtrelenmis_veri(), input$min_hacim_karne); df <- firma_karne_filtrelenmis_veri() %>% filter(toplam_gonderi_sayisi >= input$min_hacim_karne) %>% mutate(ortalama_teslim_suresi = round(ortalama_teslim_suresi, 2), sikayet_orani_gosterim = paste0(round(sikayet_orani_yuzde, 1), "% (", toplam_sikayet_sayisi, " adet)")) %>% arrange(desc(Ham_EPS)); df %>% select(`İlçe` = ilce, `Şehir` = sehir, `Genel Skor (EPS)` = Ham_EPS, `Başarı Oranı` = dinamik_basari_orani, `Şikayet Oranı` = sikayet_orani_gosterim, `Ort. Teslim Süresi (Saat)` = ortalama_teslim_suresi, `Gönderi Sayısı` = toplam_gonderi_sayisi) %>% DT::datatable(rownames = FALSE, selection = 'single', options = list(pageLength = 10, searching = TRUE, scrollX = TRUE)) %>% formatPercentage(c('Genel Skor (EPS)', 'Başarı Oranı'), digits = 1) })
     output$show_sikayet_panel <- reactive({ req(sikayet_analizi_ozet_verisi()); return(nrow(sikayet_analizi_ozet_verisi()) > 0) }); outputOptions(output, 'show_sikayet_panel', suspendWhenHidden = FALSE)
     output$sikayet_analizi_baslik <- renderText({ req(input$sikayet_firma_secimi, input$sikayet_sehir_secimi); firma_adi <- if(input$sikayet_firma_secimi == "all_companies") "Tüm Firmalar" else input$sikayet_firma_secimi; bolge_adi <- if(input$sikayet_sehir_secimi == "all_cities") "Tüm Türkiye" else str_to_upper(input$sikayet_sehir_secimi, "tr"); paste(firma_adi, "için", bolge_adi, "Bölgesindeki Şikayet Dağılımı") })
     
-    # ========================================================== #
-    # >>> DEĞİŞİKLİK: Şikayet Analizi Grafigi Temaya Duyarlı Hale Getirildi <<< #
-    # ========================================================== #
     output$sikayet_analizi_grafigi <- renderPlot({
       df_summary <- sikayet_analizi_ozet_verisi()
       req(nrow(df_summary) > 0)
       df_plot <- df_summary %>% head(15)
       
-      plot_theme <- if (isTRUE(theme_reactive() == "dark")) {
-        theme_dark(base_size = 14) + theme(panel.grid.major.y = element_blank(), panel.grid.minor.x = element_blank(), panel.grid.major.x = element_line(linetype = "dashed", color = "#495057"))
+      if (isTRUE(theme_reactive() == "dark")) {
+        plot_theme <- theme_minimal(base_size = 14) + 
+          theme(
+            panel.background = element_rect(fill = "#343A40", color = NA),
+            plot.background = element_rect(fill = "#343A40", color = NA),
+            panel.grid.major.y = element_blank(), 
+            panel.grid.minor.x = element_blank(), 
+            panel.grid.major.x = element_line(linetype = "dashed", color = "#495057"),
+            text = element_text(color = "#E9ECEF"),
+            axis.text = element_text(color = "#E9ECEF"),
+            title = element_text(color = "#FFFFFF")
+          )
       } else {
-        theme_minimal(base_size = 14) + theme(panel.grid.major.y = element_blank(), panel.grid.minor.x = element_blank(), panel.grid.major.x = element_line(linetype = "dashed", color = "gray"))
+        plot_theme <- theme_minimal(base_size = 14) + 
+          theme(
+            panel.grid.major.y = element_blank(), 
+            panel.grid.minor.x = element_blank(), 
+            panel.grid.major.x = element_line(linetype = "dashed", color = "gray")
+          )
       }
       
       if(input$sikayet_firma_secimi == "all_companies") { 
@@ -223,13 +236,10 @@ server_b2c <- function(id, data, theme_reactive) {
         coord_flip() + 
         labs(title = plot_title, x = x_label, y = "Toplam Şikayet Sayısı") + 
         plot_theme
-    })
+    }, bg = "transparent")
     
     output$sikayet_analizi_tablosu <- DT::renderDataTable({ df_summary <- sikayet_analizi_ozet_verisi(); req(nrow(df_summary) > 0); if(input$sikayet_firma_secimi == "all_companies") { df_table <- df_summary %>% select(`Kargo Firması` = kargo_turu, `Toplam Şikayet Sayısı` = toplam_sikayet_sayisi, `Toplam Gönderi Sayısı` = toplam_gonderi_sayisi, `Şikayet Oranı (%)` = sikayet_orani_yuzde) } else { df_table <- df_summary %>% select(`Şehir` = sehir, `İlçe` = ilce, `Toplam Şikayet Sayısı` = toplam_sikayet_sayisi, `Toplam Gönderi Sayısı` = toplam_gonderi_sayisi, `Şikayet Oranı (%)` = sikayet_orani_yuzde) }; DT::datatable(df_table, rownames = FALSE, options = list(pageLength = 10, searching = TRUE, scrollX = TRUE)) %>% formatRound('Şikayet Oranı (%)', digits = 2) })
     
-    # ========================================================== #
-    # >>> DEĞİŞİKLİK: Aykırı Değer Grafigi Temaya Duyarlı Hale Getirildi <<< #
-    # ========================================================== #
     output$aykiri_pie_chart <- renderPlot({
       req(input$aykiri_analiz_modu != "firma_ozet")
       plot_data <- aykiri_grafik_verisi()
@@ -246,24 +256,36 @@ server_b2c <- function(id, data, theme_reactive) {
         }
       )
       
-      plot_theme <- if (isTRUE(theme_reactive() == "dark")) {
-        theme_void(base_size = 16) + theme(plot.title = element_text(hjust = 0.5, face = "bold", color = "white"), legend.title = element_text(face = "bold", color="white"), legend.text = element_text(color="white"))
+      if (isTRUE(theme_reactive() == "dark")) {
+        plot_theme <- theme_void(base_size = 16) + 
+          theme(
+            plot.title = element_text(hjust = 0.5, face = "bold", color = "white"), 
+            legend.title = element_text(face = "bold", color="white"), 
+            legend.text = element_text(color="white")
+          )
+        bar_border_color <- "#212529"
       } else {
-        theme_void(base_size = 16) + theme(plot.title = element_text(hjust = 0.5, face = "bold"), legend.title = element_text(face = "bold"))
+        plot_theme <- theme_void(base_size = 16) + 
+          theme(
+            plot.title = element_text(hjust = 0.5, face = "bold"), 
+            legend.title = element_text(face = "bold")
+          )
+        bar_border_color <- "white"
       }
       
       ggplot(plot_data, aes(x = "", y = yuzde, fill = fct_reorder(kategori, yuzde))) + 
-        geom_bar(stat = "identity", width = 1, color = if(isTRUE(theme_reactive() == "dark")) "#212529" else "white") + 
-        geom_text(aes(label = paste0(round(yuzde * 100), "%\n(", sayi, " adet)")), position = position_stack(vjust = 0.5), color = "white", size = 5, fontface = "bold") + 
+        geom_bar(stat = "identity", width = 1, color = bar_border_color) + 
+        geom_text(aes(label = paste0(round(yuzde * 100), "%\n(", sayi, " adet)")), 
+                  position = position_stack(vjust = 0.5), 
+                  color = "white", size = 5, fontface = "bold") + 
         labs(title = grafik_basligi, fill = "Kategori") + 
         plot_theme
-    })
+    }, bg = "transparent")
     
     output$firma_ozet_basligi <- renderText({ req(aykiri_firma_ozet_verisi()); toplam_aykiri <- sum(aykiri_firma_ozet_verisi()$Toplam); paste0("Firma Bazında Aykırı Değer Özeti (Toplam: ", format(toplam_aykiri, big.mark=","), " Adet)") })
     output$aykiri_firma_ozet_tablosu <- DT::renderDataTable({ DT::datatable(aykiri_firma_ozet_verisi(), rownames = FALSE, options = list(searching = FALSE, paging = FALSE, info = FALSE, columnDefs = list(list(className = 'dt-center', targets = '_all')))) })
     output$aykiri_degerler_tablosu <- DT::renderDataTable({ df <- aykiri_veriler(); req(df); DT::datatable(df, colnames = c("Şehir", "İlçe", "Kargo Firması", "Teslim Süresi (Saat)", "Tahmini Süre (Saat)", "Çıkarılma Nedeni", "Kargo No"), options = list(pageLength = 15, scrollX = TRUE, search = list(regex = TRUE, caseInsensitive = TRUE)), filter = 'top') })
     
-    # ... (observeEvent'ler aynı kalır) ...
     observeEvent(input$detay_tablosu_rows_selected, { req(input$detay_tablosu_rows_selected); selected_row_index <- input$detay_tablosu_rows_selected; karsilastirma_verisi_orijinal <- ilce_karsilastirma_data() %>% mutate(sikayet_orani_gosterim = paste0(round(sikayet_orani_yuzde, 1), "% (", toplam_sikayet_sayisi, " adet)"), ortalama_desi = round(ortalama_desi, 2), gonderi_sayisi_gosterim = paste0(toplam_gonderi_sayisi, " (%", round(hacim_yuzdesi, 0), ")")) %>% arrange(desc(Bayes_EPS)); secilen_firma <- karsilastirma_verisi_orijinal %>% slice(selected_row_index) %>% pull(kargo_turu); secilen_sehir <- input$sehir_secimi_tab1; secilen_ilce <- input$ilce_secimi_tab1; detay_verisi <- ham_veri_temiz() %>% filter(kargo_turu == secilen_firma); if (secilen_ilce == "all_districts") { detay_verisi <- detay_verisi %>% filter(sehir == secilen_sehir); bolge_adi <- str_to_upper(secilen_sehir, "tr") } else { detay_verisi <- detay_verisi %>% filter(sehir == secilen_sehir, ilce == secilen_ilce); bolge_adi <- paste(str_to_upper(secilen_sehir, "tr"), "-", str_to_upper(secilen_ilce, "tr")) }; detay_verisi_final <- detay_verisi %>% select(`Kargo No` = kargo_no, `Durum` = kargo_durumu, `Teslim Süresi (Saat)` = toplam_teslim_suresi_saat, `Tahmini Süre (Saat)` = yeni_max_teslimat_suresi, `Şikayet Var Mı?` = sikayet_var_mi, `Son Hareket Tarihi` = son_islem_tarihi) %>% arrange(desc(`Teslim Süresi (Saat)`)); showModal(modalDialog(title = paste0(secilen_firma, " - ", bolge_adi, " Bölgesi Sipariş Detayları"), DT::dataTableOutput(session$ns("siparis_detay_tablosu")), footer = modalButton("Kapat"), size = "l", easyClose = TRUE)); output$siparis_detay_tablosu <- DT::renderDataTable({ DT::datatable(detay_verisi_final, rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE)) }) })
     observeEvent(input$firma_karne_tablosu_rows_selected, { req(input$firma_karne_tablosu_rows_selected); selected_row_index <- input$firma_karne_tablosu_rows_selected; secilen_firma <- input$secilen_firma_karne; karne_data_orijinal <- firma_karne_filtrelenmis_veri() %>% arrange(desc(Ham_EPS)); secilen_sehir <- karne_data_orijinal %>% slice(selected_row_index) %>% pull(sehir); secilen_ilce <- karne_data_orijinal %>% slice(selected_row_index) %>% pull(ilce); detay_verisi <- ham_veri_temiz() %>% filter(kargo_turu == secilen_firma, sehir == secilen_sehir, ilce == secilen_ilce); detay_verisi_final <- detay_verisi %>% select(`Kargo No` = kargo_no, `Durum` = kargo_durumu, `Teslim Süresi (Saat)` = toplam_teslim_suresi_saat, `Tahmini Süre (Saat)` = yeni_max_teslimat_suresi, `Şikayet Var Mı?` = sikayet_var_mi, `Son Hareket Tarihi` = son_islem_tarihi) %>% arrange(desc(`Teslim Süresi (Saat)`)); bolge_adi <- paste(str_to_upper(secilen_sehir, "tr"), "-", str_to_upper(secilen_ilce, "tr")); showModal(modalDialog(title = paste0(secilen_firma, " - ", bolge_adi, " Bölgesi Sipariş Detayları"), DT::dataTableOutput(session$ns("siparis_detay_tablosu_karne")), footer = modalButton("Kapat"), size = "l", easyClose = TRUE)); output$siparis_detay_tablosu_karne <- DT::renderDataTable({ DT::datatable(detay_verisi_final, rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE)) }) })
     
