@@ -1,4 +1,4 @@
-# app.R - TAM VE NİHAİ HALİ (Geniş Modal Tanımı Eklendi)
+# app.R - TAM VE NİHAİ HALİ (Gereksiz CSS Kaldırıldı)
 
 #--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
 source("00_Config.R")
@@ -102,16 +102,8 @@ server <- function(input, output, session) {
           .btn-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background-color: rgba(0, 0, 0, 0.2); transition: width 0.25s ease-in-out; }
           .btn-progress-text { position: relative; z-index: 1; }
           .btn-loading { position: relative; opacity: 0.85; cursor: not-allowed !important; overflow: hidden; }
-          .btn-loading::after { content: ''; position: absolute; top: 0; left: -50%; width: 200%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.25) 70%, rgba(255,255,255,0) 100%); animation: shimmer 1.5s infinite; border-radius: inherit; }
+          .btn-loading::after { content: ''; position: absolute; top: 0; left: -50%; width: 200%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.725) 70%, rgba(255,255,255,0.8) 100%); animation: shimmer 2s infinite; border-radius: inherit; }
           
-          /* ========================================================================= */
-          /* >>> DEĞİŞİKLİK BURADA: Geniş Modal Tanımı <<< */
-          /* ========================================================================= */
-          .modal-xl .modal-dialog {
-            max-width: 95%;
-          }
-          /* ========================================================================= */
-
           /* DARK MODE STİLLERİ */
           :root { --bg-color-light: #FFFFFF; --panel-bg-light: #F8F9FA; --text-color-light: #212529; --border-color-light: #DEE2E6; --bg-color-dark: #212529; --panel-bg-dark: #343A40; --text-color-dark: #E9ECEF; --border-color-dark: #495057; }
           body.dark-mode { --bg-color-light: var(--bg-color-dark); --panel-bg-light: var(--panel-bg-dark); --text-color-light: var(--text-color-dark); --border-color-light: var(--border-color-dark); }
