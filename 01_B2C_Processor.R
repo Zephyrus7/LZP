@@ -68,7 +68,7 @@ analiz_et_ve_skorla_b2c <- function(db_pool, start_date, end_date, progress_upda
   update_progress(amount = 0.1, detail = "Firma isimleri standartlaştırılıyor...")
   ana_veri_birlesik_firma <- ana_veri_with_complaints %>% mutate(kargo_turu = case_when(kargo_turu == "Trendyol" ~ "PTT", kargo_turu %in% c("Eve Teslim", "Hediye", "Standart") ~ "Bovo Kargo", TRUE ~ kargo_turu))
   
-  update_progress(amount = 0.1, detail = "Teslimat süreleri Pazar günleri hariç hesaplanıyor...")
+  update_progress(amount = 0.1, detail = "Teslimat süreleri pazar günleri hariç hesaplanıyor...")
   ana_veri_birlesik_firma <- ana_veri_birlesik_firma %>%
     mutate(
       toplam_teslim_suresi_saat = is_gunu_saati_hesapla_super_vectorized(kargo_tarihi, teslim_tarihi)
@@ -86,23 +86,23 @@ analiz_et_ve_skorla_b2c <- function(db_pool, start_date, end_date, progress_upda
     )
   
   #--- 3. ANALİZLER ---
-  update_progress(amount = 0.1, detail = "Gelişmiş aykırı değer analizi yapılıyor...")
+  update_progress(amount = 0.1, detail = "Aykırı değer analizi yapılıyor...")
   tolerans_orani <- 0.25
   aykiri_degerler_raporu <- ana_veri_zengin %>% filter(!is.na(toplam_teslim_suresi_saat)) %>% group_by(ilce, sehir, kargo_turu) %>% mutate(q1 = quantile(toplam_teslim_suresi_saat, 0.25, na.rm = TRUE), q3 = quantile(toplam_teslim_suresi_saat, 0.75, na.rm = TRUE), iqr = q3 - q1, lower_bound = q1 - 5.5 * iqr, upper_bound = q3 + 5.5 * iqr, is_too_low = toplam_teslim_suresi_saat < lower_bound, is_too_high = toplam_teslim_suresi_saat > upper_bound) %>% ungroup() %>% mutate(is_sla_breach = if_else(!is.na(yeni_max_teslimat_suresi), toplam_teslim_suresi_saat > yeni_max_teslimat_suresi, FALSE), toleransli_ust_sinir = yeni_max_teslimat_suresi * (1 + tolerans_orani)) %>% mutate(aykiri_deger_nedeni = case_when(toplam_teslim_suresi_saat == 0 ~ "Geçersiz Süre (0 Saat)", is_too_low ~ "Aşırı Düşük Teslimat Süresi", is_too_high & is_sla_breach & (toplam_teslim_suresi_saat > toleransli_ust_sinir) ~ "Aşırı Yüksek Teslimat Süresi", TRUE ~ NA_character_)) %>% filter(!is.na(aykiri_deger_nedeni)) %>% select(sehir, ilce, kargo_turu, teslim_suresi = toplam_teslim_suresi_saat, tahmini_sure = yeni_max_teslimat_suresi, cikarilma_nedeni = aykiri_deger_nedeni, kargo_no)
   
-  update_progress(amount = 0.1, detail = "Şikayet ve temel metrikler hesaplanıyor...")
+  update_progress(amount = 0.2, detail = "Şikayet ve temel metrikler hesaplanıyor...")
   temel_metrikler_ham <- ana_veri_zengin %>% filter(!is.na(kargo_turu) & !is.na(ilce)) %>% group_by(ilce, sehir, kargo_turu) %>% summarise(sikayet_orani_yuzde = mean(sikayet_var_mi, na.rm = TRUE) * 100, toplam_gonderi_sayisi = n(), toplam_sikayet_sayisi = sum(sikayet_var_mi, na.rm = TRUE), ortalama_desi = mean(desi, na.rm = TRUE), .groups = 'drop')
   
-  update_progress(amount = 0.05, detail = "Veri seti aykırı değerlerden temizleniyor...")
+  update_progress(amount = 0.25, detail = "Veri seti aykırı değerlerden temizleniyor...")
   ana_veri_zengin_temizlenmis <- ana_veri_zengin %>% anti_join(aykiri_degerler_raporu, by = "kargo_no")
   
-  update_progress(amount = 0.1, detail = "Performans metrikleri (hız, başarı) hesaplanıyor...")
+  update_progress(amount = 0.4, detail = "Performans metrikleri hesaplanıyor...")
   performans_metrikleri <- ana_veri_zengin_temizlenmis %>% filter(!is.na(kargo_turu) & !is.na(ilce)) %>% group_by(ilce, sehir, kargo_turu) %>% summarise(dinamik_basari_orani = mean(basari_flag, na.rm = TRUE), ortalama_teslim_suresi = mean(toplam_teslim_suresi_saat, na.rm = TRUE), .groups = 'drop')
   
-  update_progress(amount = 0.05, detail = "Aylık özetler oluşturuluyor...")
+  update_progress(amount = 0.65, detail = "Aylık özetler oluşturuluyor...")
   aylik_rapor_verisi <- ana_veri_zengin_temizlenmis %>% filter(!kargo_turu %in% c("Mağazaya Teslim", "Mağazalar Arası Transfer", "21")) %>% filter(!is.na(son_islem_tarihi)) %>% mutate(Donem = floor_date(son_islem_tarihi, "month")) %>% group_by(Donem, kargo_turu) %>% summarise(`Toplam Hacim` = n(), `Ort. Teslimat Süresi (Saat)` = mean(toplam_teslim_suresi_saat, na.rm = TRUE), `Toplam Şikayet Adedi` = sum(sikayet_var_mi, na.rm = TRUE), .groups = 'drop') %>% mutate(`Şikayet Oranı (%)` = if_else(`Toplam Hacim` > 0, (`Toplam Şikayet Adedi` / `Toplam Hacim`) * 100, 0), Donem = format(Donem, "%Y-%m")) %>% select(Donem, `Kargo Firması` = kargo_turu, everything()) %>% arrange(Donem, `Kargo Firması`)
   
-  update_progress(amount = 0.1, detail = "Tüm metrikler birleştiriliyor ve skorlanıyor...")
+  update_progress(amount = 0.90, detail = "Tüm metrikler birleştiriliyor ve skorlanıyor...")
   temel_metrikler <- temel_metrikler_ham %>% left_join(performans_metrikleri, by = c("ilce", "sehir", "kargo_turu")) %>% mutate(across(where(is.numeric), ~if_else(is.na(.) | is.infinite(.), 0, .))) %>% group_by(sehir) %>% mutate(performans_puani = scales::rescale(dinamik_basari_orani, to = c(0, 1)), hiz_puani = 1 - scales::rescale(ortalama_teslim_suresi, to = c(0, 1)), musteri_deneyimi_puani = 1 - scales::rescale(sikayet_orani_yuzde, to = c(0, 1))) %>% ungroup() %>% mutate(across(ends_with("_puani"), ~if_else(is.na(.) | is.infinite(.), 0, .)))
   
   #--- 4. SONUÇLARI DÖNDÜR ---

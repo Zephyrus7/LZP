@@ -1,4 +1,4 @@
-# app.R - TAM HALİ (Buton Görünümü İyileştirildi ve Hatalar Düzeltildi)
+# app.R - TAM VE NİHAİ HALİ (Dark Mode Düğmesinin Yeri ve Hizalaması Düzeltildi)
 
 #--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
 source("00_Config.R")
@@ -20,10 +20,9 @@ ui <- fluidPage(
 #--- 3. SUNUCU MANTIĞI (SERVER) ---
 server <- function(input, output, session) {
   
-  # Session namespace'i alıyoruz, bu en iyi pratiktir.
   ns <- session$ns
   
-  # ... (Uygulama başlangıç, login, db_date_range kodları aynı kalır) ...
+  # ... (Login, db_date_range, rv kodları aynı kalır) ...
   try({
     user_count <- dbGetQuery(db_pool, "SELECT COUNT(*) AS n FROM kullanicilar")
     if (user_count$n == 0) {
@@ -91,40 +90,40 @@ server <- function(input, output, session) {
       id = "main_navbar",
       title = "Lojistik Zeka Platformu",
       theme = shinytheme("sandstone"),
+      
+      # >>> DEĞİŞİKLİK: Dark Mode düğmesi header'dan kaldırıldı
       header = tagList(
         shinyjs::useShinyjs(),
         tags$head(tags$style(HTML("
-          /* Mevcut stiller... */
+          /* Tüm CSS kodları aynı kalıyor... */
           .navbar-default { background-color: #4A545C !important; border-color: #3E464D !important; } .navbar-default .navbar-brand { color: #ffffff; } .navbar-default .navbar-brand:hover, .navbar-default .navbar-brand:focus { color: #f1f1f1; } .navbar-default .navbar-nav > li > a { color: #d1d1d1; } .navbar-default .navbar-nav > .active > a, .navbar-default .navbar-nav > .active > a:hover, .navbar-default .navbar-nav > .active > a:focus { color: #ffffff; background-color: #3E464D; } .navbar-default .navbar-nav > li > a:hover, .navbar-default .navbar-nav > li > a:focus { color: #ffffff; background-color: #5a626a; }
           .btn-loading { position: relative; opacity: 0.85; cursor: not-allowed !important; }
           .btn-loading::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.75) 75%, rgba(255,255,255,0.875) 100%); animation: shimmer 1.5s infinite; border-radius: inherit; }
           .shimmer-placeholder { background-color: #e9ecef; position: relative; overflow: hidden; border-radius: 4px; }
           .shimmer-placeholder::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.75) 50%, rgba(255,255,255,0.25) 70%, rgba(255,255,255,0) 100%); animation: shimmer 1.25s infinite; }
           @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+          .btn-progress-container { position: relative; text-align: center; color: white !important; overflow: hidden; text-transform: none !important; }
+          .btn-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background-color: rgba(0, 0, 0, 0.2); transition: width 0.25s ease-in-out; }
+          .btn-progress-text { position: relative; z-index: 1; }
           
-          /* =================================================================== */
-          /*            >>> İLERLEME ÇUBUĞU BUTONU İÇİN STİLLER <<<              */
-          /* =================================================================== */
-          .btn-progress-container { 
-            position: relative; 
-            text-align: center; 
-            color: white !important; 
-            overflow: hidden; 
-            text-transform: none !important; /* YENİ: Büyük harf dönüşümünü engeller */
+          /* >>> DARK MODE STİLLERİ <<< */
+          :root {
+            --bg-color-light: #FFFFFF; --panel-bg-light: #F8F9FA; --text-color-light: #212529; --border-color-light: #DEE2E6;
+            --bg-color-dark: #212529; --panel-bg-dark: #343A40; --text-color-dark: #E9ECEF; --border-color-dark: #495057;
           }
-          .btn-progress-fill { 
-            position: absolute; 
-            left: 0; 
-            top: 0; 
-            height: 100%; 
-            width: 0%; 
-            background-color: rgba(0, 0, 0, 0.2); 
-            transition: width 0.25s ease-in-out; 
+          body.dark-mode {
+            --bg-color-light: var(--bg-color-dark); --panel-bg-light: var(--panel-bg-dark); --text-color-light: var(--text-color-dark); --border-color-light: var(--border-color-dark);
           }
-          .btn-progress-text { 
-            position: relative; 
-            z-index: 1; 
-          }
+          body { background-color: var(--bg-color-light); color: var(--text-color-light); transition: background-color 0.3s ease, color 0.3s ease; }
+          h1, h2, h3, h4, h5, p, .form-group label, .control-label { color: var(--text-color-light) !important; }
+          .well, .sidebar-panel, .modal-content, .panel { background-color: var(--panel-bg-light) !important; border: 1px solid var(--border-color-light) !important; }
+          body.dark-mode .navbar-default { background-color: #1a1d20 !important; border-color: #343A40 !important; }
+          body.dark-mode .dataTables_wrapper, body.dark-mode .dataTables_length, body.dark-mode .dataTables_filter, body.dark-mode .dataTables_info, body.dark-mode .dataTables_paginate { color: var(--text-color-dark) !important; }
+          body.dark-mode table.dataTable tr.odd { background-color: var(--panel-bg-dark); }
+          body.dark-mode table.dataTable tr.even { background-color: #2c3136; }
+          body.dark-mode table.dataTable th, body.dark-mode table.dataTable td { border-bottom: 1px solid var(--border-color-dark); color: var(--text-color-dark) !important; }
+          body.dark-mode .shimmer-placeholder { background-color: #343A40; }
+          body.dark-mode .form-control { background-color: #495057; color: white; border-color: #6C757D; }
         ")))
       ),
       tabPanel("Giriş ve Ayarlar", icon = icon("cog"),
@@ -132,6 +131,7 @@ server <- function(input, output, session) {
                  column(4,
                         h3("Analiz Ayarları"),
                         wellPanel(
+                          # ... (Analiz ayarları içeriği aynı kalır) ...
                           h4("1. Analiz Modunu Seçin"),
                           radioButtons(ns("analiz_modu"), label = NULL, choices = c("Statik Analiz" = "statik", "Canlı Analiz" = "canli"), selected = "statik", inline = TRUE),
                           hr(),
@@ -139,36 +139,72 @@ server <- function(input, output, session) {
                           conditionalPanel( "input.analiz_modu == 'canli'", h4("2. Analiz Tipini Seçin"), radioButtons(ns("analiz_tipi_canli"), label = NULL, choices = c("Bireysel (B2C)" = "B2C", "Kurumsal (B2B)" = "B2B"), inline = TRUE), p(tags$small("Bu modül, veritabanındaki en güncel verileri kullanarak anlık bir analiz sunar.")) ),
                           hr(),
                           
-                          # >>> DEĞİŞİKLİK: btn-lg kaldırıldı, style etiketi güncellendi
                           div(
                             id = ns("analiz_baslat_container"),
                             onclick = sprintf("Shiny.setInputValue('%s', Math.random(), {priority: 'event'})", ns("analiz_baslat")),
                             class = "btn btn-primary btn-block btn-progress-container", 
-                            style = "padding: 8px 12px; font-size: 15px; line-height: 3; border-radius: 6px;", 
+                            style = "padding: 8px 12px; font-size: 15px; line-height: 1.5; border-radius: 6px;", 
                             div(class = "btn-progress-fill", id=ns("progress_fill")),
                             span(class = "btn-progress-text", id=ns("progress_text"), "Analizi Başlat")
                           )
                         )
                  ),
-                 column(8, h3("Platforma Hoş Geldiniz!"), p("Bu platform, B2C ve B2B kargo operasyonlarınızı merkezi veritabanından analiz etmenizi sağlar."), tags$ol( tags$li("Sol taraftan bir analiz modu (Statik veya Canlı) seçin."), tags$li("Seçiminize göre beliren ayarları (veri kapsamı, tarih aralığı gibi) yapın ve analiz tipini belirleyin."), tags$li("'Analizi Başlat' butonuna tıklayarak seçtiğiniz modda analizi başlatın."), tags$li("Analiz tamamlandığında, sonuçları inceleyebileceğiniz yeni sekmeler eklenecektir.") ) )
+                 column(8,
+                        # ======================================================================== #
+                        # >>> DEĞİŞİKLİK: Başlık ve Düğme Flexbox ile aynı satıra hizalandı <<< #
+                        # ======================================================================== #
+                        div(
+                          style = "display: flex; justify-content: space-between; align-items: center;",
+                          h3("Platforma Hoş Geldiniz!"),
+                          shinyWidgets::switchInput(
+                            inputId = ns("dark_mode_switch"),
+                            onLabel = icon("moon"),
+                            offLabel = icon("sun"),
+                            onStatus = "info",
+                            offStatus = "warning",
+                            inline = TRUE,
+                            size = "small"
+                          )
+                        ),
+                        p("Bu platform, B2C ve B2B kargo operasyonlarınızı merkezi veritabanından analiz etmenizi sağlar."), 
+                        tags$ol( 
+                          tags$li("Sol taraftan bir analiz modu (Statik veya Canlı) seçin."), 
+                          tags$li("Seçiminize göre beliren ayarları (veri kapsamı, tarih aralığı gibi) yapın ve analiz tipini belirleyin."), 
+                          tags$li("'Analizi Başlat' butonuna tıklayarak seçtiğiniz modda analizi başlatın."), 
+                          tags$li("Analiz tamamlandığında, sonuçları inceleyebileceğiniz yeni sekmeler eklenecektir.") 
+                        )
+                 )
                )
       )
     )
   })
   
-  server_b2c("b2c_modul", reactive(if(req(rv$tip) == "B2C") rv$data))
-  server_b2b("b2b_modul", reactive(if(req(rv$tip) == "B2B") rv$data))
+  # ... (Sunucu mantığının geri kalanı BİREBİR AYNI kalır) ...
+  
+  theme_reactive <- reactiveVal("light")
+  
+  observeEvent(input$dark_mode_switch, {
+    shinyjs::runjs('if(typeof shinyjs.init != "function") { shinyjs.init = function() { $("body").addClass("shinyjs-resettable"); } }')
+    
+    if (isTRUE(input$dark_mode_switch)) {
+      shinyjs::addClass(selector = "body", class = "dark-mode")
+      theme_reactive("dark")
+    } else {
+      shinyjs::removeClass(selector = "body", class = "dark-mode")
+      theme_reactive("light")
+    }
+  })
+  
+  server_b2c("b2c_modul", reactive(if(req(rv$tip) == "B2C") rv$data), theme_reactive)
+  server_b2b("b2b_modul", reactive(if(req(rv$tip) == "B2B") rv$data), theme_reactive)
   
   observeEvent(input$analiz_baslat, {
     req(rv$user_authenticated)
-    
-    # --- 1. BUTONU "ÇALIŞIYOR" MODUNA AL ---
     shinyjs::addClass(id = "analiz_baslat_container", class = "btn-loading") 
     shinyjs::runjs(sprintf("$('#%s').css('pointer-events', 'none');", ns("analiz_baslat_container"))) 
     shinyjs::html(id = "progress_text", html = "Başlatılıyor...") 
     shinyjs::runjs(sprintf("$('#%s').css('width', '0%%');", ns("progress_fill")))
     
-    # --- 2. İŞLEM BİTİNCE BUTONU ESKİ HALİNE GETİR ---
     on.exit({
       shinyjs::html(id = "progress_text", html = "Analizi Başlat")
       shinyjs::removeClass(id = "analiz_baslat_container", class = "btn-loading")
@@ -179,11 +215,9 @@ server <- function(input, output, session) {
       shinyjs::runjs(sprintf("$('#%s').css('width', '0%%');", ns("progress_fill")))
     })
     
-    # --- 3. ÖNCEKİ SONUÇLARI TEMİZLE ---
     if(length(rv$active_tabs) > 0) { lapply(rv$active_tabs, function(tab_val) removeTab(inputId = "main_navbar", target = tab_val)); rv$active_tabs <- character(0) }
     rv$data <- NULL
     
-    # --- 4. YENİ İLERLEME FONKSİYONUNU TANIMLA ---
     custom_progress_updater <- function(amount, detail = NULL) {
       if(!is.null(detail)){
         shinyjs::html(selector = paste0("#", ns("progress_text")), html = detail)
@@ -191,7 +225,6 @@ server <- function(input, output, session) {
       shinyjs::runjs(sprintf("$('#%s').css('width', '%f%%');", ns("progress_fill"), amount * 100))
     }
     
-    # --- 5. ANALİZ SÜRECİNİ YENİ FONKSİYONLA ÇALIŞTIR ---
     if (input$analiz_modu == "statik") {
       local_start_date <- NULL
       local_end_date <- NULL
@@ -227,7 +260,6 @@ server <- function(input, output, session) {
       showNotification("Canlı Analiz modu henüz geliştirme aşamasındadır.", type = "warning", duration = 8); return()
     }
     
-    # --- 6. SONUÇLARI GÖSTER ---
     if (!is.null(rv$data)) {
       tab_list <- list()
       if (rv$tip == "B2C") { tab_list <- ui_b2c("b2c_modul") } else if (rv$tip == "B2B") { tab_list <- ui_b2b("b2b_modul") }
@@ -240,7 +272,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # ... (Kodun geri kalan tüm kısımları, indirme fonksiyonları vb. aynıdır) ...
   generate_speed_comparison_report <- function(data) {
     b2b_turleri_to_exclude <- c("Mağazaya Teslim", "Mağazalar Arası Transfer", "B2B")
     base_data <- data %>% filter(!kargo_turu %in% b2b_turleri_to_exclude) %>% mutate(bolge = paste(sehir, ilce, sep=" - ")) %>% select(bolge, kargo_turu, ortalama_teslim_suresi, toplam_gonderi_sayisi)

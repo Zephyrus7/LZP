@@ -1,6 +1,7 @@
 library(shiny)
 library(shinythemes)
 library(shinyjs)
+library(shinyWidgets)
 library(dplyr)
 library(tidyr)
 library(lubridate)
