@@ -1,4 +1,4 @@
-# ui_b2c.R - GÜNCELLENMİŞ HALİ (Marka Analizine Coğrafi Filtre Eklendi)
+# ui_b2c.R - NİHAİ GÜNCELLEME (Dark Mode Uyumlu Bilgilendirme Paneli)
 
 # =========================================================================
 #                   >>> YARDIMCI FONKSİYON <<<
@@ -82,11 +82,9 @@ ui_b2c <- function(id) {
                sidebarPanel(width = 3,
                             h4("Filtreleme Seçenekleri"),
                             uiOutput(ns("marka_analizi_marka_filter_ui")),
-                            # === DEĞİŞİKLİK BURADA BAŞLIYOR ===
                             uiOutput(ns("marka_analizi_il_filter_ui")),
                             uiOutput(ns("marka_analizi_ilce_filter_ui")),
                             p(tags$small(em("Burada seçeceğiniz markanın B2C gönderilerinin, dilerseniz belirli bir coğrafyaya göre filtrelenmiş, kargo firmalarıyla olan performansını karşılaştırabilirsiniz.")))
-                            # === DEĞİŞİKLİK BURADA BİTİYOR ===
                ),
                mainPanel(width = 9,
                          h3(textOutput(ns("marka_analizi_baslik"))),
@@ -132,8 +130,21 @@ ui_b2c <- function(id) {
                ),
                mainPanel(width = 9, 
                          h3("Firma Bazında Metrik Karşılaştırma Raporu"),
-                         hr(), 
-                         DT::dataTableOutput(ns("karsilastirma_tablosu"))
+                         hr(),
+                         conditionalPanel(
+                           condition = "!output.show_comparison_table", ns = ns,
+                           # === DEĞİŞİKLİK BURADA: `style` yerine `class` kullanıldı ===
+                           div(
+                             class = "info-panel", # Yeni sınıf atandı
+                             icon("info-circle", "fa-2x"),
+                             h4("Karşılaştırma Raporunu Görüntüleyin", style="margin-top: 15px;"),
+                             p("Lütfen sol taraftaki menüden iki farklı tarih dönemi ve karşılaştırılacak metrikleri seçip", tags$br(), tags$b("'VERİLERİ KARŞILAŞTIR'"), "butonuna basın.")
+                           )
+                         ),
+                         conditionalPanel(
+                           condition = "output.show_comparison_table", ns = ns,
+                           DT::dataTableOutput(ns("karsilastirma_tablosu"))
+                         )
                )
              )
     ),

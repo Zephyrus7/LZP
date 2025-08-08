@@ -1,4 +1,4 @@
-# app.R - NİHAİ DÜZELTME (Fonksiyon Çağrısına Argüman Eklendi)
+# app.R - TAM VE EKSİKSİZ NİHAİ HAL (Dark Mode İçin CSS Kuralı Eklendi)
 
 #--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
 source("00_Config.R")
@@ -24,7 +24,15 @@ server <- function(input, output, session) {
   
   try({user_count<-dbGetQuery(db_pool,"SELECT COUNT(*) AS n FROM kullanicilar");if(user_count$n==0){cat("'kullanicilar' tablosu boş. Varsayılan admin kullanıcısı oluşturuluyor...\n");hashed_password<-bcrypt::hashpw("admin");insert_query<-"INSERT INTO kullanicilar (kullanici_adi, parola_hash, ad_soyad) VALUES (?, ?, ?)";dbExecute(db_pool,insert_query,params=list("admin",hashed_password,"Varsayılan Yönetici"));cat("Varsayılan Kullanıcı:\n  Kullanıcı Adı: admin\n  Şifre: admin\n")}})
   db_date_range<-tryCatch({query<-"SELECT MIN(son_hareket_tarihi) AS min_date, MAX(son_hareket_tarihi) AS max_date FROM gonderiler";range_df<-dbGetQuery(db_pool,query);if(is.na(range_df$min_date)||is.na(range_df$max_date)){list(min_date=Sys.Date(),max_date=Sys.Date())}else{cat("Veritabanındaki mevcut veri aralığı:",format(as.Date(range_df$min_date),"%d-%m-%Y"),"-",format(as.Date(range_df$max_date),"%d-%m-%Y"),"\n");range_df}},error=function(e){list(min_date=Sys.Date(),max_date=Sys.Date())})
-  rv<-reactiveValues(data=NULL,tip=NULL,active_tabs=character(0),user_authenticated=FALSE)
+  
+  rv <- reactiveValues(
+    data = NULL,
+    tip = NULL,
+    active_tabs = character(0),
+    user_authenticated = FALSE,
+    b2c_server_result = NULL
+  )
+  
   login_dialog<-modalDialog(title="Lojistik Zeka Platformu - Giriş",textInput(ns("login_username"),"Kullanıcı Adı"),passwordInput(ns("login_password"),"Şifre"),tags$script(HTML(sprintf("
       $(document).on('keyup', function(e) {
         if ($('#shiny-modal').is(':visible') && (e.which == 13)) {
@@ -45,7 +53,6 @@ server <- function(input, output, session) {
       header = tagList(
         shinyjs::useShinyjs(),
         tags$head(tags$style(HTML("
-          /* ... (CSS kodunda değişiklik yok) ... */
           .navbar-default { background-color: #4A545C !important; border-color: #3E464D !important; } .navbar-default .navbar-brand { color: #ffffff; } .navbar-default .navbar-brand:hover, .navbar-default .navbar-brand:focus { color: #f1f1f1; } .navbar-default .navbar-nav > li > a { color: #d1d1d1; } .navbar-default .navbar-nav > .active > a, .navbar-default .navbar-nav > .active > a:hover, .navbar-default .navbar-nav > .active > a:focus { color: #ffffff; background-color: #3E464D; } .navbar-default .navbar-nav > li > a:hover, .navbar-default .navbar-nav > li > a:focus { color: #ffffff; background-color: #5a626a; }
           .shimmer-placeholder { background-color: #e9ecef; position: relative; overflow: hidden; border-radius: 4px; }
           .shimmer-placeholder::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.50) 50%, rgba(255,255,255,0.725) 70%, rgba(255,255,255,0.925) 100%); animation: shimmer 1.75s infinite; }
@@ -67,6 +74,21 @@ server <- function(input, output, session) {
           body.dark-mode table.dataTable th, body.dark-mode table.dataTable td { border-bottom: 1px solid var(--border-color-dark); color: var(--text-color-dark) !important; }
           body.dark-mode .shimmer-placeholder { background-color: #343A40; }
           body.dark-mode .form-control { background-color: #495057; color: white; border-color: #6C757D; }
+
+          .info-panel {
+            text-align: center;
+            padding: 50px;
+            border: 1px dashed var(--border-color-light);
+            background-color: var(--panel-bg-light);
+            border-radius: 5px;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+          }
+          .info-panel .fa-info-circle {
+            color: #6c757d;
+          }
+          body.dark-mode .info-panel .fa-info-circle {
+            color: #adb5bd;
+          }
         ")))
       ),
       tabPanel("Giriş ve Ayarlar", icon = icon("cog"),
@@ -93,16 +115,6 @@ server <- function(input, output, session) {
   theme_reactive <- reactiveVal("light")
   observeEvent(input$dark_mode_switch, {shinyjs::runjs('if(typeof shinyjs.init != "function") { shinyjs.init = function() { $("body").addClass("shinyjs-resettable"); } }');if (isTRUE(input$dark_mode_switch)) { shinyjs::addClass(selector = "body", class = "dark-mode"); theme_reactive("dark") } else { shinyjs::removeClass(selector = "body", class = "dark-mode"); theme_reactive("light") }})
   
-  # === DEĞİŞİKLİK BURADA: b2c_server_result'ı rv içine taşıdık ===
-  rv <- reactiveValues(
-    data = NULL,
-    tip = NULL,
-    active_tabs = character(0),
-    user_authenticated = FALSE,
-    b2c_server_result = NULL # Yeni eklenen satır
-  )
-  
-  # server_b2c'yi rv$b2c_server_result'a atama
   rv$b2c_server_result <- server_b2c("b2c_modul", reactive(if(req(rv$tip) == "B2C") rv$data), theme_reactive)
   server_b2b("b2b_modul", reactive(if(req(rv$tip) == "B2B") rv$data), theme_reactive)
   
@@ -163,6 +175,7 @@ server <- function(input, output, session) {
   
   output$download_button_csv_ui <- renderUI({
     req(rv$user_authenticated, rv$tip)
+    # `isolate` kullanarak bu UI'ın gereksiz yere yeniden çizilmesini önlüyoruz.
     if(rv$tip == "B2C" && isTruthy(isolate(rv$b2c_server_result$can_generate_brand_report()))) {
       tagList(
         hr(),
@@ -208,8 +221,8 @@ server <- function(input, output, session) {
       shinyjs::addClass(id = button_id, class = "btn-loading")
       shinyjs::disable(id = button_id)
       
-      # === DEĞİŞİKLİK BURADA: Fonksiyon artık doğru argümanla çağrılıyor ===
       req(rv$data$ham_veri_temiz)
+      # Düzeltilmiş Çağrı: Fonksiyona `rv$data$ham_veri_temiz` argüman olarak veriliyor.
       combined_df <- rv$b2c_server_result$generate_all_brands_on_demand(rv$data$ham_veri_temiz)
       
       if(isTruthy(combined_df) && nrow(combined_df) > 0){
