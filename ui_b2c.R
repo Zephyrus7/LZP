@@ -1,4 +1,4 @@
-# ui_b2c.R - TAM VE NİHAİ HALİ (CSV değişikliğinden etkilenmedi)
+# ui_b2c.R - GÜNCELLENMİŞ HALİ (Marka Analizine Coğrafi Filtre Eklendi)
 
 # =========================================================================
 #                   >>> YARDIMCI FONKSİYON <<<
@@ -80,9 +80,13 @@ ui_b2c <- function(id) {
     tabPanel("Marka Analizi", icon = icon("tags"),
              sidebarLayout(
                sidebarPanel(width = 3,
-                            h4("Marka Seçimi"),
+                            h4("Filtreleme Seçenekleri"),
                             uiOutput(ns("marka_analizi_marka_filter_ui")),
-                            p(tags$small(em("Burada seçeceğiniz markanın B2C gönderilerinin, farklı kargo firmalarıyla olan performansını karşılaştırabilirsiniz.")))
+                            # === DEĞİŞİKLİK BURADA BAŞLIYOR ===
+                            uiOutput(ns("marka_analizi_il_filter_ui")),
+                            uiOutput(ns("marka_analizi_ilce_filter_ui")),
+                            p(tags$small(em("Burada seçeceğiniz markanın B2C gönderilerinin, dilerseniz belirli bir coğrafyaya göre filtrelenmiş, kargo firmalarıyla olan performansını karşılaştırabilirsiniz.")))
+                            # === DEĞİŞİKLİK BURADA BİTİYOR ===
                ),
                mainPanel(width = 9,
                          h3(textOutput(ns("marka_analizi_baslik"))),
