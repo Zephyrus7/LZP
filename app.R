@@ -1,4 +1,4 @@
-# app.R - TAM VE EKSİKSİZ NİHAİ HAL (Dark Mode İçin CSS Kuralı Eklendi)
+# app.R - GÜNCELLENMİŞ HAL (Dinamik İndirme Arayüzü İçin)
 
 #--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
 source("00_Config.R")
@@ -30,7 +30,8 @@ server <- function(input, output, session) {
     tip = NULL,
     active_tabs = character(0),
     user_authenticated = FALSE,
-    b2c_server_result = NULL
+    b2c_server_result = NULL,
+    b2b_server_result = NULL
   )
   
   login_dialog<-modalDialog(title="Lojistik Zeka Platformu - Giriş",textInput(ns("login_username"),"Kullanıcı Adı"),passwordInput(ns("login_password"),"Şifre"),tags$script(HTML(sprintf("
@@ -116,7 +117,7 @@ server <- function(input, output, session) {
   observeEvent(input$dark_mode_switch, {shinyjs::runjs('if(typeof shinyjs.init != "function") { shinyjs.init = function() { $("body").addClass("shinyjs-resettable"); } }');if (isTRUE(input$dark_mode_switch)) { shinyjs::addClass(selector = "body", class = "dark-mode"); theme_reactive("dark") } else { shinyjs::removeClass(selector = "body", class = "dark-mode"); theme_reactive("light") }})
   
   rv$b2c_server_result <- server_b2c("b2c_modul", reactive(if(req(rv$tip) == "B2C") rv$data), theme_reactive)
-  server_b2b("b2b_modul", reactive(if(req(rv$tip) == "B2B") rv$data), theme_reactive)
+  rv$b2b_server_result <- server_b2b("b2b_modul", reactive(if(req(rv$tip) == "B2B") rv$data), theme_reactive)
   
   observeEvent(input$analiz_baslat, {
     req(rv$user_authenticated); shinyjs::addClass(id = "analiz_baslat_container", class = "btn-loading"); shinyjs::runjs(sprintf("$('#%s').css('pointer-events', 'none');", ns("analiz_baslat_container"))); shinyjs::html(id = "progress_text", html = "Başlatılıyor..."); shinyjs::runjs(sprintf("$('#%s').css('width', '0%%');", ns("progress_fill")))
@@ -136,116 +137,45 @@ server <- function(input, output, session) {
       tab_list <- list(); if (rv$tip == "B2C") { tab_list <- ui_b2c("b2c_modul") } else if (rv$tip == "B2B") { tab_list <- ui_b2b("b2b_modul") }; lapply(tab_list, function(tab) appendTab(inputId = "main_navbar", tab, select = FALSE)); rv$active_tabs <- c(rv$active_tabs, sapply(tab_list, function(t) t$attribs$title))
       if (rv$tip == "B2C") { updateNavbarPage(session, "main_navbar", selected = "Ağırlık Simülatörü") } else if (rv$tip == "B2B") { updateNavbarPage(session, "main_navbar", selected = "Kargo Firması Karnesi") }
       download_tab_value <- "download_tab"
+      
+      # === DEĞİŞİKLİK BURADA: İndirme sekmesinin içeriği basitleştirildi ===
       appendTab(inputId = "main_navbar", 
                 tabPanel(title = "Veri İndir", value = download_tab_value, icon = icon("download"),
                          sidebarLayout(
                            sidebarPanel(
                              h4("İndirme Seçenekleri"),
-                             uiOutput(ns("download_options_ui")),
-                             hr(),
-                             uiOutput(ns("download_button_csv_ui"))
+                             # Kontrol artık modülün içinden gelecek
+                             uiOutput(ns("download_ui_placeholder")) 
                            ),
                            mainPanel(
                              h3("Veri Raporlarını İndirin"),
+                             p("Bu bölüm, analiz sonuçlarına göre dinamik olarak oluşturulan raporları indirmenizi sağlar."),
                              p("Sol taraftaki menüden indirmek istediğiniz raporları ve formatı seçerek verileri indirebilirsiniz.")
                            )
                          )
                 )
       )
+      # =================================================================
+      
       rv$active_tabs <- c(rv$active_tabs, download_tab_value)
     }
   })
   
-  generate_speed_comparison_report <- function(data) { b2b_turleri_to_exclude <- c("Mağazaya Teslim", "Mağazalar Arası Transfer", "B2B"); base_data <- data %>% filter(!kargo_turu %in% b2b_turleri_to_exclude) %>% mutate(bolge = paste(sehir, ilce, sep=" - ")) %>% select(bolge, kargo_turu, ortalama_teslim_suresi, toplam_gonderi_sayisi); best_worst_performers <- base_data %>% group_by(bolge) %>% summarise(en_iyi_firma = kargo_turu[which.min(ortalama_teslim_suresi)], en_kotu_firma = kargo_turu[which.max(ortalama_teslim_suresi)], .groups = 'drop'); regional_summary <- base_data %>% group_by(bolge) %>% summarise(toplam_gonderi = sum(toplam_gonderi_sayisi, na.rm = TRUE), genel_ortalama_hiz = weighted.mean(ortalama_teslim_suresi, toplam_gonderi_sayisi, na.rm = TRUE), .groups = 'drop'); pivoted_data <- base_data %>% pivot_wider(id_cols = bolge, names_from = kargo_turu, values_from = c(toplam_gonderi_sayisi, ortalama_teslim_suresi), names_sep = "_", values_fill = list(toplam_gonderi_sayisi = 0, ortalama_teslim_suresi = NA)); final_report <- pivoted_data %>% left_join(regional_summary, by = "bolge") %>% left_join(best_worst_performers, by = "bolge"); firmalar <- unique(base_data$kargo_turu); firma_sutunlari_sirali <- unlist(lapply(firmalar, function(f) c(paste0("toplam_gonderi_sayisi_", f), paste0("ortalama_teslim_suresi_", f)))); final_report <- final_report %>% select(`Satır Etiketleri` = bolge, all_of(firma_sutunlari_sirali), `Say Kargo No Toplamı` = toplam_gonderi, `Ortalama Toplam Teslim Süresi (Saat) Toplamı` = genel_ortalama_hiz, `EN İYİ TESLİMAT SÜRESİNE SAHİP FİRMA` = en_iyi_firma, `EN KÖTÜ TESLİMAT SÜRESİNE SAHİP FİRMA` = en_kotu_firma); return(final_report) }
-  
-  output$download_options_ui <- renderUI({
+  # === DEĞİŞİKLİK BURADA: İndirme UI'ını oluşturan yeni bir renderUI eklendi ===
+  output$download_ui_placeholder <- renderUI({
     req(rv$user_authenticated, rv$tip)
-    tagList(
-      p(strong("Genel Raporlar")),
-      checkboxGroupInput(ns("download_choices_xlsx"), label=NULL,
-                         choices = if(rv$tip == "B2C") {
-                           c("Temel Analiz ve Skorlar" = "b2c_sonuclar",
-                             "Aykırı Değer Raporu" = "b2c_aykiri",
-                             "Bölgesel Hız Karşılaştırma" = "b2c_hiz_raporu")
-                         } else { c("B2B Ana Analiz Verisi" = "b2b_main") },
-                         selected = if(rv$tip == "B2C") c("b2c_sonuclar", "b2c_aykiri", "b2c_hiz_raporu") else "b2b_main"),
-      downloadButton(ns("download_data_button_xlsx"), "Seçilenleri İndir (.xlsx)", class="btn-success btn-block")
-    )
-  })
-  
-  output$download_button_csv_ui <- renderUI({
-    req(rv$user_authenticated, rv$tip)
-    # `isolate` kullanarak bu UI'ın gereksiz yere yeniden çizilmesini önlüyoruz.
-    if(rv$tip == "B2C" && isTruthy(isolate(rv$b2c_server_result$can_generate_brand_report()))) {
-      tagList(
-        hr(),
-        p(strong("Detaylı Marka Raporu")),
-        downloadButton(ns("download_data_button_csv"), "Tüm Marka Performansını İndir (.csv)", class="btn-info btn-block")
-      )
-    } else {
-      NULL
+    if (rv$tip == "B2C") {
+      # B2C modülünden dönen download_ui fonksiyonunu çağır
+      req(rv$b2c_server_result$download_ui)
+      rv$b2c_server_result$download_ui()
+    } else if (rv$tip == "B2B") {
+      # B2B modülünden dönen download_ui fonksiyonunu çağır (gelecekte eklenecek)
+      req(rv$b2b_server_result$download_ui)
+      rv$b2b_server_result$download_ui()
     }
   })
+  # ========================================================================
   
-  output$download_data_button_xlsx <- downloadHandler(
-    filename = function() { paste0("Lojistik_Genel_Rapor_", rv$tip, "_", Sys.Date(), ".xlsx") },
-    content = function(file) {
-      req(input$download_choices_xlsx)
-      list_of_datasets <- list()
-      if(rv$tip == "B2C") {
-        if ("b2c_sonuclar" %in% input$download_choices_xlsx) list_of_datasets[["Analiz_ve_Skorlar"]] <- rv$data$sonuclar
-        if ("b2c_aykiri" %in% input$download_choices_xlsx) list_of_datasets[["Aykırı_Değerler"]] <- rv$data$aykiri_degerler
-        if ("b2c_hiz_raporu" %in% input$download_choices_xlsx) list_of_datasets[["Bolgesel_Hiz_Karsilastirma"]] <- generate_speed_comparison_report(rv$data$sonuclar)
-      } else {
-        if ("b2b_main" %in% input$download_choices_xlsx) list_of_datasets[["B2B_Ana_Veri"]] <- rv$data$main_data
-      }
-      
-      if(length(list_of_datasets) > 0) {
-        write.xlsx(list_of_datasets, file, asTable = TRUE, headerStyle = createStyle(textDecoration = "bold", fgFill = "#DDEBF7", halign = "center"))
-      } else {
-        showNotification("İndirilecek seçili bir rapor bulunamadı.", type = "warning", duration=4); file.create(file)
-      }
-    }
-  )
-  
-  output$download_data_button_csv <- downloadHandler(
-    filename = function() { paste0("Lojistik_Marka_Raporu_Detayli_", Sys.Date(), ".csv") },
-    content = function(file) {
-      button_id <- ns("download_data_button_csv")
-      on.exit({
-        shinyjs::html(id = button_id, html = "Tüm Marka Performansını İndir (.csv)")
-        shinyjs::removeClass(id = button_id, class = "btn-loading")
-        shinyjs::enable(id = button_id)
-      })
-      shinyjs::html(id = button_id, html = "Veriler Hazırlanıyor...")
-      shinyjs::addClass(id = button_id, class = "btn-loading")
-      shinyjs::disable(id = button_id)
-      
-      req(rv$data$ham_veri_temiz)
-      # Düzeltilmiş Çağrı: Fonksiyona `rv$data$ham_veri_temiz` argüman olarak veriliyor.
-      combined_df <- rv$b2c_server_result$generate_all_brands_on_demand(rv$data$ham_veri_temiz)
-      
-      if(isTruthy(combined_df) && nrow(combined_df) > 0){
-        combined_df_final <- combined_df %>% 
-          select(
-            `Marka Adı` = gonderici,
-            `Şehir` = sehir,
-            `İlçe` = ilce,
-            `Kargo Firması` = kargo_turu, 
-            `Hacim Ayarlı Skor` = Bayes_EPS, 
-            `Ham Skor` = Ham_EPS, 
-            `Ortalama Teslim Süresi` = ortalama_teslim_suresi, 
-            `Başarı Oranı` = dinamik_basari_orani, 
-            `Şikayet Oranı` = sikayet_orani_yuzde, 
-            `Toplam Gönderi` = toplam_gonderi_sayisi
-          )
-        readr::write_csv(combined_df_final, file)
-      } else {
-        showNotification("İndirilecek marka verisi bulunamadı.", type="warning", duration=4)
-        file.create(file)
-      }
-    }
-  )
 }
 
 #--- 4. UYGULAMAYI BAŞLAT ---
