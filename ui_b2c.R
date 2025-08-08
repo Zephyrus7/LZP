@@ -1,4 +1,4 @@
-# ui_b2c.R - TAM HALİ (Marka Analizi Sekmesi Eklendi)
+# ui_b2c.R - TAM VE NİHAİ HALİ (CSV değişikliğinden etkilenmedi)
 
 # =========================================================================
 #                   >>> YARDIMCI FONKSİYON <<<
@@ -77,9 +77,6 @@ ui_b2c <- function(id) {
                )
              )
     ),
-    # =========================================================================
-    # >>>>>>>>>>>> YENİ SEKME BURAYA EKLENDİ <<<<<<<<<<<<<<<
-    # =========================================================================
     tabPanel("Marka Analizi", icon = icon("tags"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -94,7 +91,6 @@ ui_b2c <- function(id) {
                )
              )
     ),
-    # =========================================================================
     tabPanel("Şikayet Analizi", icon = icon("exclamation-triangle"),
              sidebarLayout(
                sidebarPanel(width = 3,
