@@ -1,9 +1,8 @@
-# ui_b2c.R - NİHAİ GÜNCELLEME (Dark Mode Uyumlu Bilgilendirme Paneli)
+# ui_b2c.R - GÜNCELLENMİŞ HAL (Karşılaştırma Paneli Basitleştirildi)
 
 # =========================================================================
 #                   >>> YARDIMCI FONKSİYON <<<
 # =========================================================================
-# Tekrar tekrar aynı div kodunu yazmamak için bir yardımcı fonksiyon.
 shimmer_placeholder <- function(height = "100px", width = "100%") {
   div(class = "shimmer-placeholder", style = paste0("height: ", height, "; width: ", width, ";"))
 }
@@ -128,23 +127,12 @@ ui_b2c <- function(id) {
                             hr(), 
                             actionButton(ns("karsilastir_button"), "VERİLERİ KARŞILAŞTIR", icon = icon("exchange-alt"), class = "btn-success btn-lg btn-block")
                ),
+               # === DEĞİŞİKLİK BURADA: ConditionalPanel'lar kaldırıldı. ===
                mainPanel(width = 9, 
                          h3("Firma Bazında Metrik Karşılaştırma Raporu"),
                          hr(),
-                         conditionalPanel(
-                           condition = "!output.show_comparison_table", ns = ns,
-                           # === DEĞİŞİKLİK BURADA: `style` yerine `class` kullanıldı ===
-                           div(
-                             class = "info-panel", # Yeni sınıf atandı
-                             icon("info-circle", "fa-2x"),
-                             h4("Karşılaştırma Raporunu Görüntüleyin", style="margin-top: 15px;"),
-                             p("Lütfen sol taraftaki menüden iki farklı tarih dönemi ve karşılaştırılacak metrikleri seçip", tags$br(), tags$b("'VERİLERİ KARŞILAŞTIR'"), "butonuna basın.")
-                           )
-                         ),
-                         conditionalPanel(
-                           condition = "output.show_comparison_table", ns = ns,
-                           DT::dataTableOutput(ns("karsilastirma_tablosu"))
-                         )
+                         # Sadece dataTableOutput bırakıldı.
+                         DT::dataTableOutput(ns("karsilastirma_tablosu"))
                )
              )
     ),
