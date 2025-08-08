@@ -1,4 +1,4 @@
-# app.R - TAM VE NİHAİ HALİ (Ayrı XLSX ve CSV İndirme Butonları Eklendi)
+# app.R - NİHAİ DÜZELTME (Fonksiyon Çağrısına Argüman Eklendi)
 
 #--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
 source("00_Config.R")
@@ -93,7 +93,17 @@ server <- function(input, output, session) {
   theme_reactive <- reactiveVal("light")
   observeEvent(input$dark_mode_switch, {shinyjs::runjs('if(typeof shinyjs.init != "function") { shinyjs.init = function() { $("body").addClass("shinyjs-resettable"); } }');if (isTRUE(input$dark_mode_switch)) { shinyjs::addClass(selector = "body", class = "dark-mode"); theme_reactive("dark") } else { shinyjs::removeClass(selector = "body", class = "dark-mode"); theme_reactive("light") }})
   
-  b2c_server_result <- server_b2c("b2c_modul", reactive(if(req(rv$tip) == "B2C") rv$data), theme_reactive)
+  # === DEĞİŞİKLİK BURADA: b2c_server_result'ı rv içine taşıdık ===
+  rv <- reactiveValues(
+    data = NULL,
+    tip = NULL,
+    active_tabs = character(0),
+    user_authenticated = FALSE,
+    b2c_server_result = NULL # Yeni eklenen satır
+  )
+  
+  # server_b2c'yi rv$b2c_server_result'a atama
+  rv$b2c_server_result <- server_b2c("b2c_modul", reactive(if(req(rv$tip) == "B2C") rv$data), theme_reactive)
   server_b2b("b2b_modul", reactive(if(req(rv$tip) == "B2B") rv$data), theme_reactive)
   
   observeEvent(input$analiz_baslat, {
@@ -113,7 +123,6 @@ server <- function(input, output, session) {
     if (!is.null(rv$data)) {
       tab_list <- list(); if (rv$tip == "B2C") { tab_list <- ui_b2c("b2c_modul") } else if (rv$tip == "B2B") { tab_list <- ui_b2b("b2b_modul") }; lapply(tab_list, function(tab) appendTab(inputId = "main_navbar", tab, select = FALSE)); rv$active_tabs <- c(rv$active_tabs, sapply(tab_list, function(t) t$attribs$title))
       if (rv$tip == "B2C") { updateNavbarPage(session, "main_navbar", selected = "Ağırlık Simülatörü") } else if (rv$tip == "B2B") { updateNavbarPage(session, "main_navbar", selected = "Kargo Firması Karnesi") }
-      # <<< DEĞİŞİKLİK BURADA: İndirme sekmesinin UI'ı güncellendi >>>
       download_tab_value <- "download_tab"
       appendTab(inputId = "main_navbar", 
                 tabPanel(title = "Veri İndir", value = download_tab_value, icon = icon("download"),
@@ -122,7 +131,6 @@ server <- function(input, output, session) {
                              h4("İndirme Seçenekleri"),
                              uiOutput(ns("download_options_ui")),
                              hr(),
-                             # İkinci buton için bir yer tutucu
                              uiOutput(ns("download_button_csv_ui"))
                            ),
                            mainPanel(
@@ -138,7 +146,6 @@ server <- function(input, output, session) {
   
   generate_speed_comparison_report <- function(data) { b2b_turleri_to_exclude <- c("Mağazaya Teslim", "Mağazalar Arası Transfer", "B2B"); base_data <- data %>% filter(!kargo_turu %in% b2b_turleri_to_exclude) %>% mutate(bolge = paste(sehir, ilce, sep=" - ")) %>% select(bolge, kargo_turu, ortalama_teslim_suresi, toplam_gonderi_sayisi); best_worst_performers <- base_data %>% group_by(bolge) %>% summarise(en_iyi_firma = kargo_turu[which.min(ortalama_teslim_suresi)], en_kotu_firma = kargo_turu[which.max(ortalama_teslim_suresi)], .groups = 'drop'); regional_summary <- base_data %>% group_by(bolge) %>% summarise(toplam_gonderi = sum(toplam_gonderi_sayisi, na.rm = TRUE), genel_ortalama_hiz = weighted.mean(ortalama_teslim_suresi, toplam_gonderi_sayisi, na.rm = TRUE), .groups = 'drop'); pivoted_data <- base_data %>% pivot_wider(id_cols = bolge, names_from = kargo_turu, values_from = c(toplam_gonderi_sayisi, ortalama_teslim_suresi), names_sep = "_", values_fill = list(toplam_gonderi_sayisi = 0, ortalama_teslim_suresi = NA)); final_report <- pivoted_data %>% left_join(regional_summary, by = "bolge") %>% left_join(best_worst_performers, by = "bolge"); firmalar <- unique(base_data$kargo_turu); firma_sutunlari_sirali <- unlist(lapply(firmalar, function(f) c(paste0("toplam_gonderi_sayisi_", f), paste0("ortalama_teslim_suresi_", f)))); final_report <- final_report %>% select(`Satır Etiketleri` = bolge, all_of(firma_sutunlari_sirali), `Say Kargo No Toplamı` = toplam_gonderi, `Ortalama Toplam Teslim Süresi (Saat) Toplamı` = genel_ortalama_hiz, `EN İYİ TESLİMAT SÜRESİNE SAHİP FİRMA` = en_iyi_firma, `EN KÖTÜ TESLİMAT SÜRESİNE SAHİP FİRMA` = en_kotu_firma); return(final_report) }
   
-  # <<< DEĞİŞİKLİK BURADA: İndirme UI'ı iki parçaya bölündü >>>
   output$download_options_ui <- renderUI({
     req(rv$user_authenticated, rv$tip)
     tagList(
@@ -156,7 +163,7 @@ server <- function(input, output, session) {
   
   output$download_button_csv_ui <- renderUI({
     req(rv$user_authenticated, rv$tip)
-    if(rv$tip == "B2C" && isTruthy(b2c_server_result$can_generate_brand_report())) {
+    if(rv$tip == "B2C" && isTruthy(isolate(rv$b2c_server_result$can_generate_brand_report()))) {
       tagList(
         hr(),
         p(strong("Detaylı Marka Raporu")),
@@ -167,9 +174,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # --- İNDİRME HANDLER'LARI ---
-  
-  # 1. XLSX Raporları için Handler
   output$download_data_button_xlsx <- downloadHandler(
     filename = function() { paste0("Lojistik_Genel_Rapor_", rv$tip, "_", Sys.Date(), ".xlsx") },
     content = function(file) {
@@ -191,9 +195,8 @@ server <- function(input, output, session) {
     }
   )
   
-  # <<< YENİ: CSV Raporu için ayrı Handler >>>
   output$download_data_button_csv <- downloadHandler(
-    filename = function() { paste0("Lojistik_Marka_Raporu_", Sys.Date(), ".csv") },
+    filename = function() { paste0("Lojistik_Marka_Raporu_Detayli_", Sys.Date(), ".csv") },
     content = function(file) {
       button_id <- ns("download_data_button_csv")
       on.exit({
@@ -205,15 +208,16 @@ server <- function(input, output, session) {
       shinyjs::addClass(id = button_id, class = "btn-loading")
       shinyjs::disable(id = button_id)
       
-      # İsteğe bağlı olarak veriyi şimdi hesapla
-      combined_df <- b2c_server_result$generate_all_brands_on_demand()
+      # === DEĞİŞİKLİK BURADA: Fonksiyon artık doğru argümanla çağrılıyor ===
+      req(rv$data$ham_veri_temiz)
+      combined_df <- rv$b2c_server_result$generate_all_brands_on_demand(rv$data$ham_veri_temiz)
       
-      # Veriyi CSV olarak yaz
       if(isTruthy(combined_df) && nrow(combined_df) > 0){
-        # Sütunları yeniden sırala
         combined_df_final <- combined_df %>% 
           select(
-            `Marka Adı` = Marka_Adi,
+            `Marka Adı` = gonderici,
+            `Şehir` = sehir,
+            `İlçe` = ilce,
             `Kargo Firması` = kargo_turu, 
             `Hacim Ayarlı Skor` = Bayes_EPS, 
             `Ham Skor` = Ham_EPS, 
