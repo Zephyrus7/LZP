@@ -1,4 +1,4 @@
-# ui_b2c.R - GÜNCELLENMİŞ HAL (Karşılaştırma Paneli Basitleştirildi)
+# ui_b2c.R - GÜNCELLENMİŞ HAL (Toplam Gösterge Panelleri Eklendi)
 
 # =========================================================================
 #                   >>> YARDIMCI FONKSİYON <<<
@@ -31,8 +31,13 @@ ui_b2c <- function(id) {
                             sliderInput(ns("guvenilirlik_esigi"), label = "3. İstatistiksel Güvenilirlik Eşiği (m):", min = 0, max = 2500, value = 750, step = 50),
                             p(tags$small("Skorların hedef puana (Taban Puan veya Genel Ortalama) ne kadar şiddetle çekileceğini belirler. Yüksek değerler, 'çekim gücünü' artırır."))
                ),
-               mainPanel(width=9, 
-                         h3("Ağırlıklara ve Hacme Göre Ayarlanmış Firma Sıralaması"), 
+               mainPanel(width=9,
+                         # --- YENİ EKLENEN UI ELEMENTİ ---
+                         div(style = "display: flex; justify-content: space-between; align-items: center;",
+                             h3("Ağırlıklara ve Hacme Göre Ayarlanmış Firma Sıralaması"),
+                             uiOutput(ns("simulator_total_count_ui"))
+                         ),
+                         # ------------------------------
                          DT::dataTableOutput(ns("simulator_tablosu")))
              )
     ),
@@ -40,7 +45,14 @@ ui_b2c <- function(id) {
              fluidRow(
                column(4, wellPanel(h4("Analiz Yapılacak Bölge"), uiOutput(ns("sehir_secimi_ui")), uiOutput(ns("ilce_secimi_ui")))),
                column(8, h3(textOutput(ns("oneri_basligi"))), fluidRow(column(4, wellPanel(h5("Genel En İyi"), h4(textOutput(ns("optimal_firma"))))), column(4, wellPanel(h5("En Hızlı"), h4(textOutput(ns("hizli_firma"))))), column(4, wellPanel(h5("En Sorunsuz"), h4(textOutput(ns("guvenilir_firma")))))))
-             ), hr(), h3(textOutput(ns("detay_tablo_basligi"))), DT::dataTableOutput(ns("detay_tablosu"))
+             ), hr(), 
+             # --- YENİ EKLENEN UI ELEMENTİ ---
+             div(style = "display: flex; justify-content: space-between; align-items: center;",
+                 h3(textOutput(ns("detay_tablo_basligi"))),
+                 uiOutput(ns("ilce_karsilastirma_total_count_ui"))
+             ),
+             # ------------------------------
+             DT::dataTableOutput(ns("detay_tablosu"))
     ),
     tabPanel("Firma Karnesi", icon = icon("book"),
              sidebarLayout(
@@ -52,7 +64,12 @@ ui_b2c <- function(id) {
                             p(tags$small("Grafikte sadece burada belirtilen sayıdan daha fazla gönderi hacmine sahip bölgeler gösterilir."))
                ),
                mainPanel(width=9,
-                         h3(textOutput(ns("firma_karne_basligi"))),
+                         # --- YENİ EKLENEN UI ELEMENTİ ---
+                         div(style = "display: flex; justify-content: space-between; align-items: center;",
+                             h3(textOutput(ns("firma_karne_basligi"))),
+                             uiOutput(ns("firma_karne_total_count_ui"))
+                         ),
+                         # ------------------------------
                          div(id = ns("placeholder_karne_grafik"), br(), shimmer_placeholder(height = "450px")),
                          div(id = ns("placeholder_karne_tablo"), br(), shimmer_placeholder(height = "300px")),
                          shinyjs::hidden(
@@ -86,7 +103,12 @@ ui_b2c <- function(id) {
                             p(tags$small(em("Burada seçeceğiniz markanın B2C gönderilerinin, dilerseniz belirli bir coğrafyaya göre filtrelenmiş, kargo firmalarıyla olan performansını karşılaştırabilirsiniz.")))
                ),
                mainPanel(width = 9,
-                         h3(textOutput(ns("marka_analizi_baslik"))),
+                         # --- YENİ EKLENEN UI ELEMENTİ ---
+                         div(style = "display: flex; justify-content: space-between; align-items: center;",
+                             h3(textOutput(ns("marka_analizi_baslik"))),
+                             uiOutput(ns("marka_analizi_total_count_ui"))
+                         ),
+                         # ------------------------------
                          hr(),
                          DT::dataTableOutput(ns("marka_analizi_tablosu"))
                )
@@ -100,7 +122,12 @@ ui_b2c <- function(id) {
                             uiOutput(ns("sikayet_analizi_sehir_filter_ui"))
                ),
                mainPanel(width = 9,
-                         h3(textOutput(ns("sikayet_analizi_baslik"))),
+                         # --- YENİ EKLENEN UI ELEMENTİ ---
+                         div(style = "display: flex; justify-content: space-between; align-items: center;",
+                             h3(textOutput(ns("sikayet_analizi_baslik"))),
+                             uiOutput(ns("sikayet_analizi_total_count_ui"))
+                         ),
+                         # ------------------------------
                          conditionalPanel(condition = "output.show_sikayet_panel", ns = ns,
                                           plotOutput(ns("sikayet_analizi_grafigi"), height = "450px"),
                                           hr(),
@@ -127,11 +154,9 @@ ui_b2c <- function(id) {
                             hr(), 
                             actionButton(ns("karsilastir_button"), "VERİLERİ KARŞILAŞTIR", icon = icon("exchange-alt"), class = "btn-success btn-lg btn-block")
                ),
-               # === DEĞİŞİKLİK BURADA: ConditionalPanel'lar kaldırıldı. ===
                mainPanel(width = 9, 
                          h3("Firma Bazında Metrik Karşılaştırma Raporu"),
                          hr(),
-                         # Sadece dataTableOutput bırakıldı.
                          DT::dataTableOutput(ns("karsilastirma_tablosu"))
                )
              )

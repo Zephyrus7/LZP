@@ -1,8 +1,7 @@
-# server_b2c.R - TAM VE EKSİKSİZ NİHAİ HAL (ns Hatası Düzeltildi, Gelişmiş İndirme Paneli UI ve Animasyonları)
+# server_b2c.R - TAM VE EKSİKSİZ NİHAİ HAL (Toplam Gösterge Panelleri Eklendi)
 
 server_b2c <- function(id, data, theme_reactive) {
   moduleServer(id, function(input, output, session) {
-    # === DÜZELTME: Silinen kritik ns tanımı buraya geri eklendi ===
     ns <- session$ns
     
     b2b_turleri <- c("Mağazaya Teslim", "Mağazalar Arası Transfer", "21")
@@ -65,7 +64,39 @@ server_b2c <- function(id, data, theme_reactive) {
     generate_all_brands_on_demand <- function(veri_cercevesi) { req(veri_cercevesi, input$agirlik_performans, input$agirlik_hiz, input$agirlik_sikayet, input$guvenilirlik_esigi, input$guven_esigi_v, input$taban_puan_c); toplam_agirlik <- input$agirlik_performans + input$agirlik_hiz + input$agirlik_sikayet; if (toplam_agirlik == 0) toplam_agirlik <- 1; agirlik_p_val <- input$agirlik_performans / toplam_agirlik; agirlik_h_val <- input$agirlik_hiz / toplam_agirlik; agirlik_s_val <- input$agirlik_sikayet / toplam_agirlik; m_param_val <- input$guvenilirlik_esigi; v_esik_param_val <- input$guven_esigi_v; c_taban_param_val <- input$taban_puan_c / 100; df_summary <- veri_cercevesi %>% filter(!is.na(gonderici) & !is.na(sehir) & !is.na(ilce)) %>% group_by(gonderici, kargo_turu, sehir, ilce) %>% summarise(toplam_gonderi_sayisi = n(), ortalama_teslim_suresi = mean(toplam_teslim_suresi_saat, na.rm = TRUE), dinamik_basari_orani = mean(basari_flag, na.rm = TRUE), toplam_sikayet_sayisi = sum(sikayet_var_mi, na.rm = TRUE), .groups = 'drop') %>% mutate(sikayet_orani_yuzde = if_else(toplam_gonderi_sayisi > 0, (toplam_sikayet_sayisi / toplam_gonderi_sayisi) * 100, 0)); if (nrow(df_summary) == 0) return(NULL); df_final <- df_summary %>% group_by(gonderici) %>% mutate(performans_puani = safe_rescale(dinamik_basari_orani), hiz_puani = 1 - safe_rescale(ortalama_teslim_suresi), musteri_deneyimi_puani = 1 - safe_rescale(sikayet_orani_yuzde), across(ends_with("_puani"), ~if_else(is.na(.) | is.infinite(.), 0, .)), Ham_EPS = (performans_puani * agirlik_p_val) + (hiz_puani * agirlik_h_val) + (musteri_deneyimi_puani * agirlik_s_val)) %>% mutate(context_average_C = weighted.mean(Ham_EPS, toplam_gonderi_sayisi, na.rm = TRUE), guvenilmez_mi = toplam_gonderi_sayisi < v_esik_param_val, Hedef_Puan_C = if_else(guvenilmez_mi, c_taban_param_val, context_average_C), Bayes_EPS = ((toplam_gonderi_sayisi / (toplam_gonderi_sayisi + m_param_val)) * Ham_EPS) + ((m_param_val / (toplam_gonderi_sayisi + m_param_val)) * Hedef_Puan_C)) %>% ungroup() %>% arrange(gonderici, sehir, ilce, desc(Bayes_EPS)); return(df_final) }
     can_generate_brand_report <- reactive({ req(ham_veri_temiz()); any(!is.na(ham_veri_temiz()$gonderici)) })
     
-    # --- OUTPUTS VE OBSERVERS (TÜM SEKMELERİN İÇERİĞİ) ---
+    # --- OUTPUTS VE OBSERVERS ---
+    
+    # --- YENİ EKLENEN OUTPUTLAR: TOPLAM GÖNDERİ SAYILARI ---
+    output$simulator_total_count_ui <- renderUI({
+      df <- simulator_data(); req(df)
+      total_count <- sum(df$Toplam_Gonderi, na.rm = TRUE)
+      tags$div(style = "text-align: right;", h5("Toplam Gönderi:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"), h4(format(total_count, big.mark = ","), style = "margin: 0; font-weight: bold;"))
+    })
+    output$ilce_karsilastirma_total_count_ui <- renderUI({
+      df <- ilce_karsilastirma_data(); req(df)
+      total_count <- sum(df$toplam_gonderi_sayisi, na.rm = TRUE)
+      tags$div(style = "text-align: right;", h5("Bölgedeki Toplam Gönderi:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"), h4(format(total_count, big.mark = ","), style = "margin: 0; font-weight: bold;"))
+    })
+    output$firma_karne_total_count_ui <- renderUI({
+      df <- firma_karne_filtrelenmis_veri(); req(df)
+      total_count <- sum(df$toplam_gonderi_sayisi, na.rm = TRUE)
+      if (total_count == 0) return(NULL)
+      tags$div(style = "text-align: right;", h5("Filtrelenen Gönderi:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"), h4(format(total_count, big.mark = ","), style = "margin: 0; font-weight: bold;"))
+    })
+    output$marka_analizi_total_count_ui <- renderUI({
+      df <- marka_analizi_data(); req(df)
+      total_count <- sum(df$toplam_gonderi_sayisi, na.rm = TRUE)
+      if (total_count == 0) return(NULL)
+      tags$div(style = "text-align: right;", h5("Markanın Toplam Gönderi:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"), h4(format(total_count, big.mark = ","), style = "margin: 0; font-weight: bold;"))
+    })
+    output$sikayet_analizi_total_count_ui <- renderUI({
+      df <- sikayet_analizi_ozet_verisi(); req(df)
+      total_count <- sum(df$toplam_gonderi_sayisi, na.rm = TRUE)
+      if (total_count == 0) return(NULL)
+      tags$div(style = "text-align: right;", h5("Filtrelenen Gönderi:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"), h4(format(total_count, big.mark = ","), style = "margin: 0; font-weight: bold;"))
+    })
+    # -----------------------------------------------------------
+    
     output$agirlik_toplami <- renderText({ paste0(input$agirlik_performans + input$agirlik_hiz + input$agirlik_sikayet, " %") })
     output$simulator_tablosu <- DT::renderDataTable({ req(simulator_data()); df_for_display <- simulator_data() %>% arrange(desc(Bayes_EPS)) %>% mutate(Bayes_EPS_display = paste0('<span title="', Bayes_Aciklama, '">', scales::percent(Bayes_EPS, accuracy = 0.01), '</span>')) %>% select( "Kargo Firması" = kargo_turu, "Ham Skor (EPS)" = Ham_EPS_Ağırlıklı, "Hacim Ayarlı Skor" = Bayes_EPS_display, "Toplam Gönderi Sayısı" = Toplam_Gonderi ); DT::datatable(df_for_display, escape = FALSE, rownames = FALSE, options = list(pageLength = 15, searching = FALSE)) %>% formatPercentage('Ham Skor (EPS)', digits = 2) })
     output$oneri_basligi <- renderText({ req(input$sehir_secimi_tab1, input$ilce_secimi_tab1); bolge <- if(input$ilce_secimi_tab1 == "all_districts") paste(toupper(input$sehir_secimi_tab1), "ŞEHRİ GENELİ") else paste(input$ilce_secimi_tab1, " (",toupper(input$sehir_secimi_tab1),") İlçesi"); paste(bolge, "İçin Anlık Öneriler") })
