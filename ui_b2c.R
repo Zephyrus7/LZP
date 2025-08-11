@@ -1,4 +1,4 @@
-# ui_b2c.R - GÜNCELLENMİŞ HAL (Toplam Gösterge Panelleri Eklendi)
+# ui_b2c.R - GÜNCELLENMİŞ HAL (Marka Analizi için Bağımsız Skorlama Ayarları Eklendi)
 
 # =========================================================================
 #                   >>> YARDIMCI FONKSİYON <<<
@@ -15,29 +15,27 @@ ui_b2c <- function(id) {
     tabPanel("Ağırlık Simülatörü", icon = icon("sliders-h"),
              sidebarLayout(
                sidebarPanel(width=3, 
-                            h4("Stratejik Öncelikleriniz"), 
+                            h4("Genel Stratejik Öncelikler"), 
                             sliderInput(ns("agirlik_performans"), "Başarı Oranı Ağırlığı:", min=0, max=100, value=40, post=" %"), 
                             sliderInput(ns("agirlik_hiz"), "Hız Ağırlığı:", min=0, max=100, value=40, post=" %"), 
                             sliderInput(ns("agirlik_sikayet"), "Müşteri Deneyimi Ağırlığı:", min=0, max=100, value=20, post=" %"), 
                             h4("Ağırlık Toplamı:"), 
                             h3(textOutput(ns("agirlik_toplami"))),
                             hr(),
-                            h4("Hacim Ayarlı Skorlama Ayarları"),
-                            p(tags$small(em("Bu ayarlar, düşük gönderi hacmine sahip firmaların skorlarını daha adil ve istatistiksel olarak anlamlı hale getirmek için kullanılır."))),
+                            h4("Genel Hacim Ayarlı Skorlama Ayarları"),
+                            p(tags$small(em("Buradaki ayarlar, 'İlçe Karşılaştırma' gibi genel analizler için kullanılır."))),
                             sliderInput(ns("guven_esigi_v"), label = "1. Minimum Güven Eşiği (v_eşik):", min = 0, max = 5000, value = 1500, step = 50),
-                            p(tags$small("Bir firmanın 'Güvenilir' kabul edilmesi için gereken minimum gönderi sayısı. Bu sayının altındaki firmalar 'Güvenilmez Bölge'de kabul edilir ve skorları Taban Puana doğru çekilir.")),
+                            p(tags$small("Bir firmanın 'Güvenilir' kabul edilmesi için gereken minimum gönderi sayısı.")),
                             sliderInput(ns("taban_puan_c"), label = "2. Taban Puan (C_taban):", min = 0, max = 100, value = 25, post = " Puan"),
-                            p(tags$small("'Güvenilmez Bölge'deki firmaların skorlarının çekileceği varsayılan düşük puandır. Bu, düşük hacimli firmaların haksız yere ödüllendirilmesini engeller.")),
+                            p(tags$small("'Güvenilmez Bölge'deki firmaların skorlarının çekileceği varsayılan düşük puandır.")),
                             sliderInput(ns("guvenilirlik_esigi"), label = "3. İstatistiksel Güvenilirlik Eşiği (m):", min = 0, max = 2500, value = 750, step = 50),
-                            p(tags$small("Skorların hedef puana (Taban Puan veya Genel Ortalama) ne kadar şiddetle çekileceğini belirler. Yüksek değerler, 'çekim gücünü' artırır."))
+                            p(tags$small("Skorların hedef puana ne kadar şiddetle çekileceğini belirler."))
                ),
                mainPanel(width=9,
-                         # --- YENİ EKLENEN UI ELEMENTİ ---
                          div(style = "display: flex; justify-content: space-between; align-items: center;",
                              h3("Ağırlıklara ve Hacme Göre Ayarlanmış Firma Sıralaması"),
                              uiOutput(ns("simulator_total_count_ui"))
                          ),
-                         # ------------------------------
                          DT::dataTableOutput(ns("simulator_tablosu")))
              )
     ),
@@ -46,12 +44,10 @@ ui_b2c <- function(id) {
                column(4, wellPanel(h4("Analiz Yapılacak Bölge"), uiOutput(ns("sehir_secimi_ui")), uiOutput(ns("ilce_secimi_ui")))),
                column(8, h3(textOutput(ns("oneri_basligi"))), fluidRow(column(4, wellPanel(h5("Genel En İyi"), h4(textOutput(ns("optimal_firma"))))), column(4, wellPanel(h5("En Hızlı"), h4(textOutput(ns("hizli_firma"))))), column(4, wellPanel(h5("En Sorunsuz"), h4(textOutput(ns("guvenilir_firma")))))))
              ), hr(), 
-             # --- YENİ EKLENEN UI ELEMENTİ ---
              div(style = "display: flex; justify-content: space-between; align-items: center;",
                  h3(textOutput(ns("detay_tablo_basligi"))),
                  uiOutput(ns("ilce_karsilastirma_total_count_ui"))
              ),
-             # ------------------------------
              DT::dataTableOutput(ns("detay_tablosu"))
     ),
     tabPanel("Firma Karnesi", icon = icon("book"),
@@ -64,12 +60,10 @@ ui_b2c <- function(id) {
                             p(tags$small("Grafikte sadece burada belirtilen sayıdan daha fazla gönderi hacmine sahip bölgeler gösterilir."))
                ),
                mainPanel(width=9,
-                         # --- YENİ EKLENEN UI ELEMENTİ ---
                          div(style = "display: flex; justify-content: space-between; align-items: center;",
                              h3(textOutput(ns("firma_karne_basligi"))),
                              uiOutput(ns("firma_karne_total_count_ui"))
                          ),
-                         # ------------------------------
                          div(id = ns("placeholder_karne_grafik"), br(), shimmer_placeholder(height = "450px")),
                          div(id = ns("placeholder_karne_tablo"), br(), shimmer_placeholder(height = "300px")),
                          shinyjs::hidden(
@@ -100,20 +94,32 @@ ui_b2c <- function(id) {
                             uiOutput(ns("marka_analizi_marka_filter_ui")),
                             uiOutput(ns("marka_analizi_il_filter_ui")),
                             uiOutput(ns("marka_analizi_ilce_filter_ui")),
-                            p(tags$small(em("Burada seçeceğiniz markanın B2C gönderilerinin, dilerseniz belirli bir coğrafyaya göre filtrelenmiş, kargo firmalarıyla olan performansını karşılaştırabilirsiniz.")))
+                            p(tags$small(em("Seçili markanın, belirli bir coğrafyaya göre filtrelenmiş performansını karşılaştırın."))),
+                            
+                            # === DEĞİŞİKLİK BURADA: MARKA ANALİZİNE ÖZEL SKORLAMA AYARLARI EKLENDİ ===
+                            hr(),
+                            h4("Markaya Özel Skorlama Ayarları"),
+                            p(tags$small(em("Bu ayarlar, sadece bu sekmedeki düşük hacimli marka analizini daha anlamlı kılmak için kullanılır."))),
+                            sliderInput(ns("guven_esigi_v_marka"), label = "1. Minimum Güven Eşiği (v_eşik):", min = 0, max = 500, value = 100, step = 20),
+                            p(tags$small("Bir firmanın bu marka için 'Güvenilir' kabul edilmesi gereken min. gönderi sayısı.")),
+                            sliderInput(ns("taban_puan_c_marka"), label = "2. Taban Puan (C_taban):", min = 0, max = 100, value = 50, post = " Puan"),
+                            p(tags$small("'Güvenilmez Bölge'deki firmaların skorlarının çekileceği varsayılan puandır.")),
+                            sliderInput(ns("guvenilirlik_esigi_marka"), label = "3. İstatistiksel Güvenilirlik Eşiği (m):", min = 0, max = 50, value = 30, step = 1),
+                            p(tags$small("Skorların hedef puana ne kadar şiddetle çekileceğini belirler."))
+                            # =========================================================================
+                            
                ),
                mainPanel(width = 9,
-                         # --- YENİ EKLENEN UI ELEMENTİ ---
                          div(style = "display: flex; justify-content: space-between; align-items: center;",
                              h3(textOutput(ns("marka_analizi_baslik"))),
                              uiOutput(ns("marka_analizi_total_count_ui"))
                          ),
-                         # ------------------------------
                          hr(),
                          DT::dataTableOutput(ns("marka_analizi_tablosu"))
                )
              )
     ),
+    # Diğer sekmelerde değişiklik yok...
     tabPanel("Şikayet Analizi", icon = icon("exclamation-triangle"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -122,12 +128,10 @@ ui_b2c <- function(id) {
                             uiOutput(ns("sikayet_analizi_sehir_filter_ui"))
                ),
                mainPanel(width = 9,
-                         # --- YENİ EKLENEN UI ELEMENTİ ---
                          div(style = "display: flex; justify-content: space-between; align-items: center;",
                              h3(textOutput(ns("sikayet_analizi_baslik"))),
                              uiOutput(ns("sikayet_analizi_total_count_ui"))
                          ),
-                         # ------------------------------
                          conditionalPanel(condition = "output.show_sikayet_panel", ns = ns,
                                           plotOutput(ns("sikayet_analizi_grafigi"), height = "450px"),
                                           hr(),
