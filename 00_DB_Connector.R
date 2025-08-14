@@ -1,40 +1,66 @@
-#==============================================================================#
-#                 VERİTABANI BAĞLANTI YÖNETİCİSİ (Basit ve Stabil)             #
-#==============================================================================#
-# BU SCRIPT'İN TEK GÖREVİ, 'db_pool' ADINDA GEÇERLİ BİR BAĞLANTI HAVUZU
-# OLUŞTURMAKTIR. UYGULAMAYA ÖZEL HİÇBİR MANTIK İÇERMEZ.
-#==============================================================================#
+# =================================================================
+#        VERİTABANI BAĞLANTI YÖNETİCİSİ (ÇİFT VERİTABANI)
+# =================================================================
+# YENİ: Bu script artık 'config.yml' dosyasındaki 'default' ve
+#       'live' profillerini okuyarak, sırasıyla 'db_pool_static'
+#       ve 'db_pool_live' adında İKİ AYRI bağlantı havuzu oluşturur.
+# =================================================================
 
-#--- GEREKLİ KÜTÜPHANELERİ ÇAĞIR ---
+# Gerekli kütüphaneleri çağır
 library(pool)
 library(config)
 library(DBI)
 library(RMariaDB)
 
-#--- config.yml DOSYASINDAN AYARLARI OKU ---
+# --- 1. STATİK ANALİZ için Bağlantı Havuzu Oluşturma ---
+
+# 'config.yml' dosyasından 'default' profilindeki ayarları oku
 tryCatch({
-  db_config <- config::get(file = "config.yml", config = "default")$database
+  static_db_config <- config::get(file = "config.yml", config = "default")$database
 }, error = function(e) {
-  stop("config.yml dosyası bulunamadı veya okunamadı! Hata: ", e$message)
+  stop("HATA: config.yml dosyasında 'default' profili bulunamadı! Hata: ", e$message)
 })
 
-#--- VERİTABANI BAĞLANTI HAVUZUNU (POOL) OLUŞTUR ---
-db_pool <- dbPool(
+# STATİK veritabanı bağlantı havuzunu (pool) oluştur
+db_pool_static <- dbPool(
   drv = RMariaDB::MariaDB(),
-  user = db_config$user,
-  password = db_config$password,
-  host = db_config$host,
-  port = db_config$port,
-  dbname = db_config$dbname
+  user = static_db_config$user,
+  password = static_db_config$password,
+  host = static_db_config$host,
+  port = static_db_config$port,
+  dbname = static_db_config$dbname
 )
 
-#--- UYGULAMA KAPANDIĞINDA BAĞLANTIYI GÜVENLE KAPAT ---
-# Bu, sadece bir Shiny uygulaması çalışırken çalışır ve hata vermez.
+cat("Statik analiz veritabanı havuzu ('db_pool_static') başarıyla oluşturuldu.\n")
+
+
+# --- 2. CANLI ANALİZ için Bağlantı Havuzu Oluşturma ---
+
+# 'config.yml' dosyasından 'live' profilindeki ayarları oku
+tryCatch({
+  live_db_config <- config::get(file = "config.yml", config = "live")$database
+}, error = function(e) {
+  stop("HATA: config.yml dosyasında 'live' profili bulunamadı! Hata: ", e$message)
+})
+
+# CANLI veritabanı bağlantı havuzunu (pool) oluştur
+db_pool_live <- dbPool(
+  drv = RMariaDB::MariaDB(),
+  user = live_db_config$user,
+  password = live_db_config$password,
+  host = live_db_config$host,
+  port = live_db_config$port,
+  dbname = live_db_config$dbname
+)
+
+cat("Canlı analiz veritabanı havuzu ('db_pool_live') başarıyla oluşturuldu.\n\n")
+
+
+# --- 3. Uygulama Kapatıldığında Tüm Bağlantıları Güvenle Kapat ---
 if (shiny::isRunning()) {
   shiny::onStop(function() {
-    cat("Shiny uygulaması durduruluyor. Veritabanı havuzu kapatılıyor...\n")
-    poolClose(db_pool)
+    cat("Shiny uygulaması durduruluyor. Tüm veritabanı havuzları kapatılıyor...\n")
+    poolClose(db_pool_static)
+    poolClose(db_pool_live)
   })
 }
-
-cat("Veritabanı bağlantı havuzu 'db_pool' başarıyla oluşturuldu.\n")
