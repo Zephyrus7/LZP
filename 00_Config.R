@@ -24,6 +24,7 @@ library(bcrypt)
 library(RMariaDB)
 library(config)
 library(DBI)
+library(prophet)
 
 # === DEĞİŞİKLİK BURADA: YENİ PAKETLER EKLENDİ ===
 library(future)          # Arka planda R kodunu çalıştırmak için temel motor

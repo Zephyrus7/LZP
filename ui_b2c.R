@@ -1,17 +1,25 @@
-# ui_b2c.R - GÜNCELLENMİŞ HAL (Marka Analizi için Bağımsız Skorlama Ayarları Eklendi)
+# =========================================================================
+#         B2C MODÜLÜ - KULLANICI ARAYÜZÜ (TAHMİNLEME ENTEGRE EDİLDİ)
+# =========================================================================
+# DEĞİŞİKLİK: Listenin sonuna, ui_forecast_b2c.R dosyasından gelen
+#             tahminleme sekmesi eklenmiştir.
+# =========================================================================
 
-# =========================================================================
-#                   >>> YARDIMCI FONKSİYON <<<
-# =========================================================================
+# --- YARDIMCI FONKSİYON ---
+# Not: Bu fonksiyon diğer sekmeler tarafından kullanıldığı için yerinde bırakıldı.
 shimmer_placeholder <- function(height = "100px", width = "100%") {
   div(class = "shimmer-placeholder", style = paste0("height: ", height, "; width: ", width, ";"))
 }
-# =========================================================================
 
-
+# --- ANA UI FONKSİYONU ---
 ui_b2c <- function(id) {
   ns <- NS(id)
+  
+  # app.R tarafından çağrıldığında, aşağıdaki tüm 'tabPanel'leri
+  # bir liste olarak döndürür.
   list(
+    
+    # 1. SEKME: Ağırlık Simülatörü (Mevcut)
     tabPanel("Ağırlık Simülatörü", icon = icon("sliders-h"),
              sidebarLayout(
                sidebarPanel(width=3, 
@@ -39,6 +47,8 @@ ui_b2c <- function(id) {
                          DT::dataTableOutput(ns("simulator_tablosu")))
              )
     ),
+    
+    # 2. SEKME: İlçe Karşılaştırma (Mevcut)
     tabPanel("İlçe Karşılaştırma", icon = icon("map-marked-alt"),
              fluidRow(
                column(4, wellPanel(h4("Analiz Yapılacak Bölge"), uiOutput(ns("sehir_secimi_ui")), uiOutput(ns("ilce_secimi_ui")))),
@@ -50,6 +60,8 @@ ui_b2c <- function(id) {
              ),
              DT::dataTableOutput(ns("detay_tablosu"))
     ),
+    
+    # 3. SEKME: Firma Karnesi (Mevcut)
     tabPanel("Firma Karnesi", icon = icon("book"),
              sidebarLayout(
                sidebarPanel(width=3,
@@ -87,6 +99,8 @@ ui_b2c <- function(id) {
                )
              )
     ),
+    
+    # 4. SEKME: Marka Analizi (Mevcut)
     tabPanel("Marka Analizi", icon = icon("tags"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -95,8 +109,6 @@ ui_b2c <- function(id) {
                             uiOutput(ns("marka_analizi_il_filter_ui")),
                             uiOutput(ns("marka_analizi_ilce_filter_ui")),
                             p(tags$small(em("Seçili markanın, belirli bir coğrafyaya göre filtrelenmiş performansını karşılaştırın."))),
-                            
-                            # === DEĞİŞİKLİK BURADA: MARKA ANALİZİNE ÖZEL SKORLAMA AYARLARI EKLENDİ ===
                             hr(),
                             h4("Markaya Özel Skorlama Ayarları"),
                             p(tags$small(em("Bu ayarlar, sadece bu sekmedeki düşük hacimli marka analizini daha anlamlı kılmak için kullanılır."))),
@@ -106,8 +118,6 @@ ui_b2c <- function(id) {
                             p(tags$small("'Güvenilmez Bölge'deki firmaların skorlarının çekileceği varsayılan puandır.")),
                             sliderInput(ns("guvenilirlik_esigi_marka"), label = "3. İstatistiksel Güvenilirlik Eşiği (m):", min = 0, max = 50, value = 30, step = 1),
                             p(tags$small("Skorların hedef puana ne kadar şiddetle çekileceğini belirler."))
-                            # =========================================================================
-                            
                ),
                mainPanel(width = 9,
                          div(style = "display: flex; justify-content: space-between; align-items: center;",
@@ -119,7 +129,8 @@ ui_b2c <- function(id) {
                )
              )
     ),
-    # Diğer sekmelerde değişiklik yok...
+    
+    # 5. SEKME: Şikayet Analizi (Mevcut)
     tabPanel("Şikayet Analizi", icon = icon("exclamation-triangle"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -144,6 +155,8 @@ ui_b2c <- function(id) {
                )
              )
     ),
+    
+    # 6. SEKME: Dinamik Karşılaştırma (Mevcut)
     tabPanel("Dinamik Karşılaştırma", icon = icon("exchange-alt"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -165,6 +178,8 @@ ui_b2c <- function(id) {
                )
              )
     ),
+    
+    # 7. SEKME: Aykırı Değer Raporu (Mevcut)
     tabPanel("Aykırı Değer Raporu", icon = icon("chart-pie"),
              sidebarLayout(
                sidebarPanel(width = 4,
@@ -183,6 +198,15 @@ ui_b2c <- function(id) {
              ),
              hr(), h3("Aykırı Değer Detay Tablosu"), p("Aşağıdaki tabloda, istatistiksel normların (teslimat süresi) dışında kaldığı için analizden çıkarılan gönderiler listelenmektedir."),
              DT::dataTableOutput(ns("aykiri_degerler_tablosu"))
-    )
-  )
+    ),
+    
+    # =========================================================================
+    #            >>> YENİ EKLENEN SEKME: Gelecek Tahmini <<<
+    # =========================================================================
+    # Bu fonksiyon, ui_forecast_b2c.R dosyasından çağrılır ve 
+    # listenin sonuna yeni bir tabPanel olarak eklenir.
+    ui_forecast_b2c(ns("forecast_b2c_modul"))
+    # =========================================================================
+    
+  ) # listenin sonu
 }
