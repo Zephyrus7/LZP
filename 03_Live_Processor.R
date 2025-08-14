@@ -1,8 +1,8 @@
 # =================================================================
-#      CANLI ANALİZ VERİ İŞLEME MOTORU (TÜM SÜTUNLARLA)
+#      CANLI ANALİZ VERİ İŞLEME MOTORU (NİHAİ DÜZELTME)
 # =================================================================
-# AMAÇ: Yeni veritabanı (lojistik_db_bovo) yapısından, server_live.R
-#       modülünün ihtiyaç duyduğu TÜM sütunları çeker.
+# DÜZELTME: Yeni stratejinin çalışması için gerekli olan 'status'
+#           sütunu sorguya eklendi.
 # =================================================================
 
 # Gerekli kütüphaneler
@@ -13,20 +13,16 @@ library(lubridate)
 
 analiz_et_ve_skorla_live <- function(db_pool, start_date, end_date, progress_updater = NULL) {
   
-  # --- Yardımcı Fonksiyon: İlerleme durumunu güncellemek için ---
   update_progress <- function(amount, detail) {
     if (!is.null(progress_updater)) {
       progress_updater(amount = amount, detail = detail)
     }
   }
   
-  # --- 1. VERİTABANINDAN VERİ ÇEKME ---
   update_progress(amount = 0.1, detail = "Canlı veritabanı tablolarına bağlanılıyor...")
   orders_tbl <- tbl(db_pool, "orders")
   work_types_tbl <- tbl(db_pool, "work_types")
   
-  
-  # --- 2. VERİLERİ BİRLEŞTİRME VE TEMEL HESAPLAMALAR ---
   update_progress(amount = 0.3, detail = "Canlı veriler birleştiriliyor...")
   
   ana_veri_sorgusu <- orders_tbl %>%
@@ -41,22 +37,18 @@ analiz_et_ve_skorla_live <- function(db_pool, start_date, end_date, progress_upd
       by = c("work_type" = "id"),
       suffix = c("_order", "_work_type")
     ) %>%
-    # === DEĞİŞİKLİK BURADA: Gerekli tüm sütunlar eklendi ===
     select(
       order_id = id,
       kargo_no = special_tracking_number,
       kargo_firmasi = name_work_type,
+      status = status, # <-- GÜNCELLENEN SATIR
       kargo_tarihi = cargo_date,
       teslim_tarihi = delivered_at,
-      tahmini_teslimat_tarihi = estimated_delivery_date, # EKLENDİ
+      tahmini_teslimat_tarihi = estimated_delivery_date,
       son_islem_tarihi = last_move_date
     )
-  # ======================================================
   
-  
-  # --- 3. VERİYİ R ORTAMINA ÇEKME ---
   update_progress(amount = 0.6, detail = "Hesaplanmış canlı veriler R ortamına çekiliyor...")
-  
   ana_veri_df <- ana_veri_sorgusu %>% collect()
   
   if (nrow(ana_veri_df) == 0) {
@@ -64,7 +56,6 @@ analiz_et_ve_skorla_live <- function(db_pool, start_date, end_date, progress_upd
     return(NULL)
   }
   
-  # --- 4. SONUCU DÖNDÜRME ---
   update_progress(amount = 0.95, detail = "Arayüz için hazırlanıyor...")
   
   return(
