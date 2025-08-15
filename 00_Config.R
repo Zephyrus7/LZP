@@ -25,6 +25,7 @@ library(RMariaDB)
 library(config)
 library(DBI)
 library(prophet)
+library(purrr)
 
 # === DEĞİŞİKLİK BURADA: YENİ PAKETLER EKLENDİ ===
 library(future)          # Arka planda R kodunu çalıştırmak için temel motor
