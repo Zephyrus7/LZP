@@ -23,8 +23,6 @@ source("ui_forecast_b2c.R")
 source("server_forecast_b2c.R")
 # ===================================================================
 
-options(shiny.maxRequestSize = 500*1024^2)
-
 #--- 2. KULLANICI ARAYÜZÜ (UI) ---
 ui <- fluidPage(
   shinyjs::useShinyjs(),
