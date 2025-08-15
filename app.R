@@ -1,14 +1,29 @@
-# app.R - GERÇEK NİHAİ VERSİYON (İKİ HAVUZLU YAPIYA UYUMLU VE HATASIZ)
+# =========================================================================
+#             ANA UYGULAMA - app.R (TAHMİNLEME ENTEGRE EDİLDİ)
+# =========================================================================
+# DEĞİŞİKLİK: Bu versiyon, yeni oluşturulan ui_forecast_b2c.R ve
+#             server_forecast_b2c.R modüllerini source() komutuyla
+#             projeye dahil eder, böylece tahminleme özelliği
+#             uygulama tarafından tanınır ve kullanılabilir hale gelir.
+# =========================================================================
+
 
 #--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
+source("00_Config.R")
 # NOT: Bu versiyon, projenin orijinal iki veritabanı havuzlu
 #      (db_pool_static ve db_pool_live) yapısıyla çalışır.
 source("00_DB_Connector.R") 
 source("01_B2C_Processor.R"); source("02_B2B_Processor.R")
-source("ui_b2c.R"); source("server_b2c.R"); source("ui_b2b.R"); source("server_b2b.R")
+source("ui_b2c.R"); source("server_b2c.R")
+source("ui_b2b.R"); source("server_b2b.R")
 source("03_Live_Processor.R"); source("ui_live.R"); source("server_live.R")
+
+# === DEĞİŞİKLİK BURADA: Yeni tahminleme modüllerini projeye dahil et ===
 source("ui_forecast_b2c.R")
 source("server_forecast_b2c.R")
+# ===================================================================
+
+options(shiny.maxRequestSize = 500*1024^2)
 
 #--- 2. KULLANICI ARAYÜZÜ (UI) ---
 ui <- fluidPage(
@@ -99,7 +114,6 @@ server <- function(input, output, session) {
           @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
         ")))
       ),
-      # DÜZELTME: tabPanel içeriği eksiksiz olarak eklendi.
       tabPanel("Giriş ve Ayarlar", icon = icon("cog"),
                fluidRow(
                  column(4, h3("Analiz Ayarları"),

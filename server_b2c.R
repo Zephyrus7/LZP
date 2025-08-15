@@ -1,8 +1,26 @@
-# server_b2c.R - GERÇEK FİNAL VERSİYON (Dinamik Karşılaştırma db_pool Hatası Düzeltildi)
+# =========================================================================
+#       B2C MODÜLÜ - SUNUCU MANTIĞI (TAHMİNLEME ENTEGRE EDİLDİ)
+# =========================================================================
+# DEĞİŞİKLİK: server_forecast_b2c fonksiyonu çağrılarak, "Gelecek Tahmini"
+#             sekmesinin arka plan mantığı aktive edilmiştir.
+# =========================================================================
 
 server_b2c <- function(id, data, theme_reactive) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    
+    # ========================================================================
+    #          >>> YENİ EKLENEN KOD: Tahminleme Modülünü Çağır <<<
+    # ========================================================================
+    # Bu satır, tahminleme sekmesindeki tüm hesaplamaları ve interaktiviteyi
+    # hayata geçirecek olan server fonksiyonunu aktive eder.
+    server_forecast_b2c(
+      id = "forecast_b2c_modul", 
+      processed_data = ana_veri,        # Processor'dan gelen tüm veriyi aktar
+      theme_reactive = theme_reactive   # Dark mode bilgisini aktar
+    )
+    # ========================================================================
+    
     
     b2b_turleri <- c("Mağazaya Teslim", "Mağazalar Arası Transfer", "21")
     
