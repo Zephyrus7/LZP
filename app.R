@@ -1,12 +1,14 @@
 # =========================================================================
-#             ANA UYGULAMA - app.R (TAHMİNLEME VE GİRİŞ DÜZELTMESİ)
+#             ANA UYGULAMA - app.R (VERİ İNDİRME DÜZELTMESİ)
 # =========================================================================
-# DEĞİŞİKLİK 1: Yeni ui_forecast_b2c.R ve server_forecast_b2c.R
-#               modülleri projeye dahil edildi.
-# DEĞİŞİKLİK 2: Giriş ekranına (modalDialog), klavyeden "Enter" tuşuna
-#               basıldığında girişi tetikleyen JavaScript kodu eklendi.
+# DEĞİŞİKLİK:
+# 1. 'observeEvent' bloğuna, Statik Analiz (B2C/B2B) sonrası dinamik
+#    olarak "Veri İndir" sekmesini ekleyen mantık geri eklendi.
+# 2. Bu dinamik sekmenin içeriğini dolduran 'renderUI' bloğu
+#    sunucu mantığına geri eklendi.
 # =========================================================================
-source("00_Config.R")
+
+
 #--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
 source("00_DB_Connector.R") 
 source("01_B2C_Processor.R"); source("02_B2B_Processor.R")
@@ -15,6 +17,8 @@ source("ui_b2b.R"); source("server_b2b.R")
 source("03_Live_Processor.R"); source("ui_live.R"); source("server_live.R")
 source("ui_forecast_b2c.R")
 source("server_forecast_b2c.R")
+
+options(shiny.maxRequestSize = 500*1024^2)
 
 #--- 2. KULLANICI ARAYÜZÜ (UI) ---
 ui <- fluidPage(
@@ -62,10 +66,6 @@ server <- function(input, output, session) {
     title = "Lojistik Zeka Platformu - Giriş",
     textInput(ns("login_username"), "Kullanıcı Adı"),
     passwordInput(ns("login_password"), "Şifre"),
-    
-    # ========================================================================
-    #          >>> DÜZELTME: "Enter ile Giriş" Kodu Eklendi <<<
-    # ========================================================================
     tags$script(HTML(sprintf("
       $(document).on('keyup', function(e) {
         if ($('#shiny-modal').is(':visible') && (e.which == 13)) {
@@ -73,8 +73,6 @@ server <- function(input, output, session) {
         }
       });
     ", ns("login_button")))),
-    # ========================================================================
-    
     footer = tagList(actionButton(ns("login_button"), "Giriş Yap", class = "btn-primary")),
     easyClose = FALSE
   )
@@ -176,24 +174,62 @@ server <- function(input, output, session) {
       if(analiz_tipi == "B2C") { rv$data <- analiz_et_ve_skorla_b2c(db_pool = db_pool_static, start_date = start_date, end_date = end_date, progress_updater = custom_progress_updater) }
       else if (analiz_tipi == "B2B") { rv$data <- analiz_et_ve_skorla_b2b(db_pool = db_pool_static, start_date = start_date, end_date = end_date, progress_updater = custom_progress_updater) }
       
-      # ...
     } else if (input$analiz_modu == "canli") {
       rv$tip <- "LIVE"
-      rv$data <- analiz_et_ve_skorla_live(
-        db_pool = db_pool_live, 
-        start_date = as.Date("1970-01-01"), 
-        end_date = Sys.Date(), 
-        progress_updater = custom_progress_updater
-      )
+      rv$data <- analiz_et_ve_skorla_live(db_pool = db_pool_live, start_date = as.Date("1970-01-01"), end_date = Sys.Date(), progress_updater = custom_progress_updater)
     }
     
-    # Sonuçlara göre sekmeleri ekle
+    # === DEĞİŞİKLİK BURADA: Dinamik sekme ekleme mantığı geri eklendi ===
     if (!is.null(rv$data)) {
+      # 1. Analiz sekmelerini ekle (B2C, B2B veya Canlı)
       tab_list <- switch(rv$tip, "B2C" = ui_b2c("b2c_modul"), "B2B" = ui_b2b("b2b_modul"), "LIVE" = ui_live("live_modul"))
       lapply(tab_list, function(tab) appendTab(inputId = "main_navbar", tab, select = TRUE))
       rv$active_tabs <- sapply(tab_list, function(t) t$attribs$title)
+      
+      # 2. Eğer analiz Statik ise, "Veri İndir" sekmesini de ekle
+      if (rv$tip %in% c("B2C", "B2B")) {
+        download_tab_value <- "download_tab"
+        appendTab(
+          inputId = "main_navbar", 
+          tabPanel(
+            title = "Veri İndir", 
+            value = download_tab_value, 
+            icon = icon("download"),
+            sidebarLayout(
+              sidebarPanel(
+                h4("İndirme Seçenekleri"), 
+                # Dinamik olarak doldurulacak yer tutucu
+                uiOutput(ns("download_ui_placeholder")) 
+              ), 
+              mainPanel(
+                h3("Veri Raporlarını İndirin"),
+                p("Sol taraftaki menüden indirmek istediğiniz raporları seçin ve ilgili butona tıklayarak indirme işlemini başlatın.")
+              )
+            )
+          )
+        )
+        # Bu sekmeyi de aktif sekmeler listesine ekle ki kaldırabilsin
+        rv$active_tabs <- c(rv$active_tabs, download_tab_value)
+      }
+    }
+    # =================================================================
+  })
+  
+  # === DEĞİŞİKLİK BURADA: Dinamik UI'ı dolduran renderUI eklendi ===
+  output$download_ui_placeholder <- renderUI({
+    req(rv$user_authenticated, rv$tip)
+    if (rv$tip == "B2C") {
+      # b2c_server_result içinden dönen download_ui fonksiyonunu çağır
+      req(b2c_server_result$download_ui)
+      b2c_server_result$download_ui()
+    } else if (rv$tip == "B2B") {
+      # b2b_server_result içinden dönen download_ui fonksiyonunu çağır
+      req(b2b_server_result$download_ui)
+      b2b_server_result$download_ui()
     }
   })
+  # =================================================================
+  
 }
 
 #--- 4. UYGULAMAYI BAŞLAT ---
