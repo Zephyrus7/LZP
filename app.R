@@ -176,9 +176,15 @@ server <- function(input, output, session) {
       if(analiz_tipi == "B2C") { rv$data <- analiz_et_ve_skorla_b2c(db_pool = db_pool_static, start_date = start_date, end_date = end_date, progress_updater = custom_progress_updater) }
       else if (analiz_tipi == "B2B") { rv$data <- analiz_et_ve_skorla_b2b(db_pool = db_pool_static, start_date = start_date, end_date = end_date, progress_updater = custom_progress_updater) }
       
+      # ...
     } else if (input$analiz_modu == "canli") {
       rv$tip <- "LIVE"
-      rv$data <- analiz_et_ve_skorla_live(db_pool = db_pool_live, start_date = Sys.Date() - 365, end_date = Sys.Date(), progress_updater = custom_progress_updater)
+      rv$data <- analiz_et_ve_skorla_live(
+        db_pool = db_pool_live, 
+        start_date = as.Date("1970-01-01"), 
+        end_date = Sys.Date(), 
+        progress_updater = custom_progress_updater
+      )
     }
     
     # Sonuçlara göre sekmeleri ekle

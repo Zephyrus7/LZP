@@ -1,25 +1,40 @@
 # =========================================================================
-#         B2C MODÜLÜ - KULLANICI ARAYÜZÜ (TAHMİNLEME ENTEGRE EDİLDİ)
+#         B2C MODÜLÜ - KULLANICI ARAYÜZÜ (ANİMASYON DÜZELTMESİ)
 # =========================================================================
-# DEĞİŞİKLİK: Listenin sonuna, ui_forecast_b2c.R dosyasından gelen
-#             tahminleme sekmesi eklenmiştir.
+# DEĞİŞİKLİK: 'shimmer_placeholder' yardımcı fonksiyonu, 'Firma Karnesi'
+#             sekmesindeki yükleme animasyonunu geri getirmek ve
+#             buton animasyonuyla tutarlı hale getirmek için güncellendi.
 # =========================================================================
 
 # --- YARDIMCI FONKSİYON ---
-# Not: Bu fonksiyon diğer sekmeler tarafından kullanıldığı için yerinde bırakıldı.
+# === DEĞİŞİKLİK BURADA: Fonksiyon güncellendi ===
 shimmer_placeholder <- function(height = "100px", width = "100%") {
-  div(class = "shimmer-placeholder", style = paste0("height: ", height, "; width: ", width, ";"))
+  # Bu fonksiyon artık, app.R'da global olarak tanımlanmış olan
+  # .btn-loading sınıfının 'shimmer' animasyonunu yeniden kullanır.
+  # Böylece tutarlı ve çalışan bir animasyon elde ederiz.
+  div(
+    class = "btn-loading", # Mevcut animasyon sınıfını kullan
+    style = paste0(
+      "height: ", height, "; ",
+      "width: ", width, "; ",
+      "background-color: #f0f3f5; ", # Placeholder için bir arka plan rengi
+      "border-radius: 6px; ",         # Köşeleri yuvarlat
+      "opacity: 1; ",                 # Butonun opaklık stilini geçersiz kıl
+      "cursor: progress !important;"  # İmleci 'bekle' olarak ayarla
+    )
+  )
 }
+# =================================================
 
 # --- ANA UI FONKSİYONU ---
 ui_b2c <- function(id) {
   ns <- NS(id)
   
   # app.R tarafından çağrıldığında, aşağıdaki tüm 'tabPanel'leri
-  # bir liste olarak döndürür.
+  # bir liste olarak döndürür. (Listenin içeriği değişmedi)
   list(
     
-    # 1. SEKME: Ağırlık Simülatörü (Mevcut)
+    # 1. SEKME: Ağırlık Simülatörü
     tabPanel("Ağırlık Simülatörü", icon = icon("sliders-h"),
              sidebarLayout(
                sidebarPanel(width=3, 
@@ -48,7 +63,7 @@ ui_b2c <- function(id) {
              )
     ),
     
-    # 2. SEKME: İlçe Karşılaştırma (Mevcut)
+    # 2. SEKME: İlçe Karşılaştırma
     tabPanel("İlçe Karşılaştırma", icon = icon("map-marked-alt"),
              fluidRow(
                column(4, wellPanel(h4("Analiz Yapılacak Bölge"), uiOutput(ns("sehir_secimi_ui")), uiOutput(ns("ilce_secimi_ui")))),
@@ -61,7 +76,7 @@ ui_b2c <- function(id) {
              DT::dataTableOutput(ns("detay_tablosu"))
     ),
     
-    # 3. SEKME: Firma Karnesi (Mevcut)
+    # 3. SEKME: Firma Karnesi
     tabPanel("Firma Karnesi", icon = icon("book"),
              sidebarLayout(
                sidebarPanel(width=3,
@@ -69,7 +84,7 @@ ui_b2c <- function(id) {
                             uiOutput(ns("firma_secimi_ui")),
                             uiOutput(ns("firma_karne_sehir_ui")),
                             numericInput(ns("min_hacim_karne"), "Grafik için Min. Gönderi Sayısı:", value = 50, min = 1, step = 10),
-                            p(tags$small("Grafikte sadece burada belirtilen sayıdan daha fazla gönderi hacmine sahip bölgeler gösterilir."))
+                            p(tags$small("Grafikte sadece burada burada belirtilen sayıdan daha fazla gönderi hacmine sahip bölgeler gösterilir."))
                ),
                mainPanel(width=9,
                          div(style = "display: flex; justify-content: space-between; align-items: center;",
@@ -100,7 +115,7 @@ ui_b2c <- function(id) {
              )
     ),
     
-    # 4. SEKME: Marka Analizi (Mevcut)
+    # ... Diğer sekmeler (Marka Analizi, Şikayet Analizi, vb.) değişmeden kalır ...
     tabPanel("Marka Analizi", icon = icon("tags"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -129,8 +144,6 @@ ui_b2c <- function(id) {
                )
              )
     ),
-    
-    # 5. SEKME: Şikayet Analizi (Mevcut)
     tabPanel("Şikayet Analizi", icon = icon("exclamation-triangle"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -155,8 +168,6 @@ ui_b2c <- function(id) {
                )
              )
     ),
-    
-    # 6. SEKME: Dinamik Karşılaştırma (Mevcut)
     tabPanel("Dinamik Karşılaştırma", icon = icon("exchange-alt"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -178,8 +189,6 @@ ui_b2c <- function(id) {
                )
              )
     ),
-    
-    # 7. SEKME: Aykırı Değer Raporu (Mevcut)
     tabPanel("Aykırı Değer Raporu", icon = icon("chart-pie"),
              sidebarLayout(
                sidebarPanel(width = 4,
@@ -200,13 +209,8 @@ ui_b2c <- function(id) {
              DT::dataTableOutput(ns("aykiri_degerler_tablosu"))
     ),
     
-    # =========================================================================
-    #            >>> YENİ EKLENEN SEKME: Gelecek Tahmini <<<
-    # =========================================================================
-    # Bu fonksiyon, ui_forecast_b2c.R dosyasından çağrılır ve 
-    # listenin sonuna yeni bir tabPanel olarak eklenir.
+    # YENİ EKLENEN SEKME: Gelecek Tahmini
     ui_forecast_b2c(ns("forecast_b2c_modul"))
-    # =========================================================================
     
   ) # listenin sonu
 }

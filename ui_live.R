@@ -1,103 +1,103 @@
-# =================================================================
-#           CANLI ANALİZ ARAYÜZ (UI) MODÜLÜ (SIDEBAR EKLENMİŞ)
-# =================================================================
-# GÜNCELLEME: İki analiz sekmesi de (Açık Gönderi ve Sipariş Dağılımı)
-#             istek üzerine sidebarLayout yapısına geçirildi.
-#             Her iki sekme için de firma filtresi yer tutucuları
-#             kenar çubuklarına eklendi.
-# =================================================================
-
 ui_live <- function(id) {
   ns <- NS(id)
   
   list(
-    # --- Sekme 1: Hareketsiz Gönderiler (Değişiklik Yok) ---
+    # --- SEKME 1: Teslimat Performansı (Değişiklik Yok) ---
     tabPanel(
-      title = "Hareketsiz Gönderiler",
-      icon = icon("bell"),
-      fluidPage(
-        fluidRow(
-          column(width = 12, h3("Hareketsiz Gönderi Alarm Listesi"),
-                 p("Aşağıdaki listede, son hareket tarihinden bu yana belirlenen süreden daha uzun süredir durumu değişmeyen 'açık' (teslim edilmemiş) kargolar gösterilmektedir."),
-                 wellPanel(style = "background-color: #f8d7da; border-color: #f5c6cb;",
-                           numericInput(inputId = ns("hareketsiz_gun_esigi"), label = "Kaç günden daha uzun süredir hareketsiz olanları göster?", value = 3, min = 1, max = 30, step = 1, width = "400px"),
-                           hr(),
-                           DT::dataTableOutput(ns("hareketsiz_gonderi_table"))
-                 )
-          )
+      title = "Teslimat Performansı",
+      icon = icon("truck-fast"),
+      sidebarLayout(
+        sidebarPanel(width = 3,
+                     h4("Performans Filtreleri"),
+                     uiOutput(ns("firma_filtre_ui_teslimat")),
+                     uiOutput(ns("marka_filtre_ui_teslimat")),
+                     hr(),
+                     p(tags$small(em("Yukarıdaki filtrelere göre teslimat sürecinin adımlarını (Alım, Partnere Verme, Teslimat) analiz edin.")))
+        ),
+        mainPanel(width = 9,
+                  h3("Teslimat Süreç Adımlarının Performansı"),
+                  fluidRow(
+                    column(4, wellPanel(style="background-color: #eaf5ff", h5("Ort. Alım Süresi (Saat)"), h3(textOutput(ns("alim_suresi_val"))))),
+                    column(4, wellPanel(style="background-color: #fff4e2", h5("Ort. Partnere Verme Süresi (Saat)"), h3(textOutput(ns("partnere_verme_suresi_val"))))),
+                    column(4, wellPanel(style="background-color: #eaffee", h5("Ort. Partner Teslim Süresi (Saat)"), h3(textOutput(ns("partner_teslim_suresi_val")))))
+                  ),
+                  hr(),
+                  h4("Firma Bazında Süre Dağılımı"),
+                  DT::dataTableOutput(ns("teslimat_performans_table"))
         )
       )
     ),
     
-    # --- Sekme 2: Açık Gönderi Durumu (SidebarLayout ile Güncellendi) ---
+    # --- SEKME 2: Operasyonel Alarmlar (Değişiklik Yok) ---
     tabPanel(
-      title = "Açık Gönderi Durumu",
-      icon = icon("chart-pie"),
+      title = "Operasyonel Alarmlar",
+      icon = icon("bell"),
       sidebarLayout(
-        # === DEĞİŞİKLİK BURADA: Sidebar Paneli Eklendi ===
         sidebarPanel(width = 3,
                      h4("Filtreler"),
-                     p(tags$small(em("Grafiği ve tabloyu seçilen kargo firmasına göre filtreleyin."))),
-                     # Bu sekmenin filtresi için UI yer tutucusu
-                     uiOutput(ns("firma_filtre_ui_acik"))
+                     uiOutput(ns("firma_filtre_ui_operasyonel")),
+                     hr(),
+                     h4("Hareketsiz Gönderi Ayarları"),
+                     numericInput(inputId = ns("hareketsiz_gun_esigi"), 
+                                  label = "Kaç günden daha uzun süredir hareketsiz olanları göster?", 
+                                  value = 3, min = 1, max = 30, step = 1)
         ),
-        # === DEĞİŞİKLİK BURADA: Ana Panel Eklendi ===
         mainPanel(width = 9,
                   h3("Açık Gönderilerin Anlık Durum Dağılımı"),
-                  plotOutput(ns("acik_gonderi_plot"), height = "500px"),
+                  plotOutput(ns("acik_gonderi_plot"), height = "450px"),
                   hr(),
-                  DT::dataTableOutput(ns("acik_gonderi_table"))
+                  h3("Hareketsiz Gönderi Alarm Listesi"),
+                  p("Aşağıdaki listede, belirlenen eşikten daha uzun süredir son durumu değişmeyen 'açık' kargolar gösterilmektedir."),
+                  DT::dataTableOutput(ns("hareketsiz_gonderi_table"))
         )
       )
     ),
     
-    # --- Sekme 3: Altın Süreç Analizi (Değişiklik Yok) ---
+    # --- SEKME 3: İade Süreçleri (Değişiklik Yok) ---
     tabPanel(
-      title = "Altın Süreç Analizi",
-      icon = icon("project-diagram"),
-      fluidPage(
-        fluidRow(
-          column(width = 12, h3('"Altın Süreç" Adımlarının Performansı'),
-                 p("Tamamlanmış süreç adımlarının ne kadar iş saatinde tamamlandığını gösteren dağılım ve özet istatistikler."),
-                 plotOutput(ns("altin_surec_plot"), height = "400px"),
-                 hr(),
-                 DT::dataTableOutput(ns("altin_surec_table"))
-          )
-        )
-      )
-    ),
-    
-    # --- Sekme 4: Canlı Firma Karnesi (Değişiklik Yok) ---
-    tabPanel(
-      title = "Canlı Firma Karnesi",
-      icon = icon("tachometer-alt"),
-      fluidPage(
-        fluidRow(
-          column(width = 12, h3("Kargo Firması Anlık Performans Karnesi"),
-                 p("Seçilen tarih aralığındaki tamamlanmış gönderilere göre firmaların anlık teslimat ve başarı performansları."),
-                 DT::dataTableOutput(ns("canli_karne_table"))
-          )
-        )
-      )
-    ),
-    
-    # --- Sekme 5: Anlık Sipariş Durum Dağılımı (SidebarLayout ile Güncellendi) ---
-    tabPanel(
-      title = "Sipariş Durum Dağılımı",
-      icon = icon("tasks"),
+      title = "İade Süreçleri",
+      icon = icon("undo"),
       sidebarLayout(
-        # === DEĞİŞİKLİK BURADA: Sidebar Paneli Eklendi ===
         sidebarPanel(width = 3,
-                     h4("Filtreler"),
-                     p(tags$small(em("Aşağıdaki tabloyu seçilen kargo firmasına göre filtreleyin."))),
-                     # Bu sekmenin filtresi için UI yer tutucusu
-                     uiOutput(ns("firma_filtre_ui_dagilim"))
+                     h4("İade Filtreleri"),
+                     uiOutput(ns("firma_filtre_ui_iade")),
+                     uiOutput(ns("marka_filtre_ui_iade")),
+                     hr(),
+                     p(tags$small(em("Yukarıdaki filtrelere göre iade sürecinin adımlarını analiz edin.")))
         ),
-        # === DEĞİŞİKLİK BURADA: Ana Panel Eklendi ===
         mainPanel(width = 9,
-                  h3("Tüm Siparişlerin Anlık Durum Dağılımı"),
-                  p("Platformdaki tüm siparişlerin (açık, kapalı, iptal vb.) genel durum dağılımını gösterir."),
-                  DT::dataTableOutput(ns("surec_performans_table"))
+                  h3("İade Süreç Adımlarının Performansı"),
+                  fluidRow(
+                    column(4, wellPanel(style="background-color: #ffeaea", h5("Ort. Müşterinin Gönderme Süresi (Saat)"), h3(textOutput(ns("musteri_iade_suresi_val"))))),
+                    column(4, wellPanel(style="background-color: #fff4e2", h5("Ort. Partner İade Süresi (Saat)"), h3(textOutput(ns("partner_iade_suresi_val"))))),
+                    column(4, wellPanel(style="background-color: #eaf5ff", h5("Ort. Bovo İade Teslim Süresi (Saat)"), h3(textOutput(ns("bovo_iade_suresi_val")))))
+                  ),
+                  hr(),
+                  h4("Firma Bazında İade Süre Dağılımı"),
+                  DT::dataTableOutput(ns("iade_performans_table"))
+        )
+      )
+    ),
+    
+    # ========================================================================
+    #               YENİ SEKME 4: TÜM SİPARİŞLER ÖZETİ
+    # ========================================================================
+    tabPanel(
+      title = "Tüm Siparişler Özeti",
+      icon = icon("archive"),
+      fluidPage(
+        wellPanel(
+          h3("Tüm Siparişlerin Durum Dağılım Raporu"),
+          p("Bu rapor, seçilen tarih aralığındaki **tüm siparişleri (açık, kapalı, iptal vb.)** analiz eder ve durumlarına göre özetler. Veri tabanının tamamını sorgulayabileceği için, bu analiz sadece butona tıklandığında başlar."),
+          actionButton(ns("run_full_analysis_button"), "Raporu Oluştur ve Görüntüle", icon = icon("cogs"), class = "btn-primary btn-lg")
+        ),
+        hr(),
+        # Sonuçlar başlangıçta gizli olacak
+        shinyjs::hidden(
+          div(id = ns("full_analysis_results_panel"),
+              h3(textOutput(ns("full_analysis_title"))),
+              DT::dataTableOutput(ns("full_analysis_table"))
+          )
         )
       )
     )
