@@ -1,27 +1,20 @@
 # =========================================================================
-#             ANA UYGULAMA - app.R (TAHMİNLEME ENTEGRE EDİLDİ)
+#             ANA UYGULAMA - app.R (TAHMİNLEME VE GİRİŞ DÜZELTMESİ)
 # =========================================================================
-# DEĞİŞİKLİK: Bu versiyon, yeni oluşturulan ui_forecast_b2c.R ve
-#             server_forecast_b2c.R modüllerini source() komutuyla
-#             projeye dahil eder, böylece tahminleme özelliği
-#             uygulama tarafından tanınır ve kullanılabilir hale gelir.
+# DEĞİŞİKLİK 1: Yeni ui_forecast_b2c.R ve server_forecast_b2c.R
+#               modülleri projeye dahil edildi.
+# DEĞİŞİKLİK 2: Giriş ekranına (modalDialog), klavyeden "Enter" tuşuna
+#               basıldığında girişi tetikleyen JavaScript kodu eklendi.
 # =========================================================================
-
-
-#--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
 source("00_Config.R")
-# NOT: Bu versiyon, projenin orijinal iki veritabanı havuzlu
-#      (db_pool_static ve db_pool_live) yapısıyla çalışır.
+#--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
 source("00_DB_Connector.R") 
 source("01_B2C_Processor.R"); source("02_B2B_Processor.R")
 source("ui_b2c.R"); source("server_b2c.R")
 source("ui_b2b.R"); source("server_b2b.R")
 source("03_Live_Processor.R"); source("ui_live.R"); source("server_live.R")
-
-# === DEĞİŞİKLİK BURADA: Yeni tahminleme modüllerini projeye dahil et ===
 source("ui_forecast_b2c.R")
 source("server_forecast_b2c.R")
-# ===================================================================
 
 #--- 2. KULLANICI ARAYÜZÜ (UI) ---
 ui <- fluidPage(
@@ -65,7 +58,26 @@ server <- function(input, output, session) {
   theme_reactive <- reactiveVal("light")
   
   # Giriş ekranı
-  login_dialog <- modalDialog(title="Lojistik Zeka Platformu - Giriş", textInput(ns("login_username"),"Kullanıcı Adı"), passwordInput(ns("login_password"),"Şifre"), footer=tagList(actionButton(ns("login_button"),"Giriş Yap",class="btn-primary")), easyClose=FALSE)
+  login_dialog <- modalDialog(
+    title = "Lojistik Zeka Platformu - Giriş",
+    textInput(ns("login_username"), "Kullanıcı Adı"),
+    passwordInput(ns("login_password"), "Şifre"),
+    
+    # ========================================================================
+    #          >>> DÜZELTME: "Enter ile Giriş" Kodu Eklendi <<<
+    # ========================================================================
+    tags$script(HTML(sprintf("
+      $(document).on('keyup', function(e) {
+        if ($('#shiny-modal').is(':visible') && (e.which == 13)) {
+          $('#%s').click();
+        }
+      });
+    ", ns("login_button")))),
+    # ========================================================================
+    
+    footer = tagList(actionButton(ns("login_button"), "Giriş Yap", class = "btn-primary")),
+    easyClose = FALSE
+  )
   showModal(login_dialog)
   
   observeEvent(input$login_button, {
