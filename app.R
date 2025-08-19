@@ -109,12 +109,27 @@ server <- function(input, output, session) {
     paste("Mevcut veri", format(as.Date(db_date_range$min_date),"%d-%m-%Y"), "ile", format(as.Date(db_date_range$max_date),"%d-%m-%Y"), "arasını kapsamaktadır.")
   })
   
-  # <<< YENİ: Canlı veri için tarih aralığı metni üreten çıktı eklendi >>>
   output$db_date_range_display_live <- renderText({
     req(db_date_range_live$min_date)
     paste("Canlı veri", format(as.Date(db_date_range_live$min_date),"%d-%m-%Y"), "ile", format(as.Date(db_date_range_live$max_date),"%d-%m-%Y"), "arasını kapsamaktadır.")
   })
-  # >>> BİTİŞ
+  
+  # ========================================================================
+  #       >>> YENİ EKLENECEK KOD: CANLI VERİ SON GÜNCELLEME SAATİ <<<
+  # ========================================================================
+  # Bu çıktı, db_date_range_live'dan gelen maksimum tarihi (en son kayıt
+  # zamanını) alıp, saat bilgisini de içerecek şekilde formatlar.
+  output$live_last_updated_time <- renderText({
+    req(db_date_range_live$max_date)
+    
+    # Veritabanından gelen değeri tarih-saat objesine çevirip formatlıyoruz
+    formatted_time <- format(
+      as.POSIXct(db_date_range_live$max_date), 
+      "%d-%m-%Y %H:%M:%S"
+    )
+    
+    paste("Son Güncelleme:", formatted_time)
+  })
   
   # Ana Arayüz
   output$main_ui_placeholder <- renderUI({
@@ -153,7 +168,13 @@ server <- function(input, output, session) {
                           
                           # <<< YENİ: Canlı Analiz paneli güncellendi >>>
                           conditionalPanel("input.analiz_modu == 'canli'", ns = ns,
+                                           # Mevcut tarih aralığı
                                            p(tags$small(em(textOutput(ns("db_date_range_display_live"))))),
+                                           
+                                           # YENİ EKLENEN SATIR: Son güncelleme saatini buraya ekliyoruz.
+                                           p(tags$small(em(textOutput(ns("live_last_updated_time"))))),
+                                           
+                                           # Açıklama metni
                                            p(tags$small("Bu modül, en güncel operasyonel verileri kullanarak anlık bir analiz sunar."))
                           ),
                           # >>> BİTİŞ
