@@ -27,6 +27,18 @@ jobs:
         with:
           use-public-rspm: true
 
+      # ====================================================================
+      #           >>> YENİ EKLENEN ADIM BURASI <<<
+      # ====================================================================
+      # Bu adım, renv paketlerini geri yüklemeden (restore) önce,
+      # 'curl' ve diğer paketlerin ihtiyaç duyduğu sistem kütüphanelerini
+      # sanal makineye kurar.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev libx11-dev pandoc
+      # ====================================================================
+
       - name: Cache renv packages
         uses: actions/cache@v4
         with:
