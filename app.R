@@ -242,12 +242,22 @@ server <- function(input, output, session) {
       rv$data <- analiz_et_ve_skorla_live(db_pool = db_pool_live, start_date = as.Date(db_date_range_live$min_date), end_date = as.Date(db_date_range_live$max_date), progress_updater = custom_progress_updater)
     }
     
+    # ... (observeEvent(input$analiz_baslat, { ... }) bloğunun içindesiniz)
+    
     # Dinamik sekme ekleme mantığı
     if (!is.null(rv$data)) {
-      tab_list <- switch(rv$tip, "B2C" = ui_b2c("b2c_modul"), "B2B" = ui_b2b("b2b_modul"), "LIVE" = ui_live("live_modul"))
-      lapply(tab_list, function(tab) appendTab(inputId = "main_navbar", tab, select = TRUE))
+      # --- 1. Analiz sekmelerini ekle (B2C, B2B veya Canlı) ---
+      tab_list <- switch(rv$tip,
+                         "B2C" = ui_b2c("b2c_modul"),
+                         "B2B" = ui_b2b("b2b_modul"),
+                         "LIVE" = ui_live("live_modul"))
+      
+      # ÖNEMLİ: Artık sekmeleri eklerken 'select = FALSE' kullanıyoruz.
+      lapply(tab_list, function(tab) appendTab(inputId = "main_navbar", tab, select = FALSE))
       rv$active_tabs <- sapply(tab_list, function(t) t$attribs$title)
       
+      
+      # --- 2. Eğer analiz Statik ise, "Veri İndir" sekmesini de ekle ---
       if (rv$tip %in% c("B2C", "B2B")) {
         download_tab_value <- "download_tab"
         appendTab(
@@ -266,12 +276,22 @@ server <- function(input, output, session) {
                 p("Sol taraftaki menüden indirmek istediğiniz raporları seçin ve ilgili butona tıklayarak indirme işlemini başlatın.")
               )
             )
-          )
+          ),
+          select = FALSE # Bu sekmeyi de seçili yapmıyoruz
         )
         rv$active_tabs <- c(rv$active_tabs, download_tab_value)
       }
+      
+      # --- 3. İstenen Landing Page'i BİLİNÇLİ OLARAK SEÇ ---
+      landing_tab <- switch(rv$tip,
+                            "B2C" = "Ağırlık Simülatörü",
+                            "B2B" = "Kargo Firması Karnesi",
+                            "LIVE" = "Teslimat Performansı")
+      
+      updateTabsetPanel(session, "main_navbar", selected = landing_tab)
+      
     }
-  })
+  }) # observeEvent sonu
   
   # Dinamik UI'ı dolduran renderUI
   output$download_ui_placeholder <- renderUI({
@@ -280,13 +300,13 @@ server <- function(input, output, session) {
       req(b2c_server_result$download_ui)
       b2c_server_result$download_ui()
     } else if (rv$tip == "B2B") {
-      # Henüz b2b için download_ui mevcut değil, eklendiğinde burası çalışacak.
+      # Not: Artık B2B için de download_ui mevcut, bu kod çalışacaktır.
       req(b2b_server_result$download_ui)
       b2b_server_result$download_ui()
     }
   })
   
-}
+} # server fonksiyonu sonu
 
 #--- 4. UYGULAMAYI BAŞLAT ---
 shinyApp(ui = ui, server = server)
