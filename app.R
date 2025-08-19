@@ -8,8 +8,8 @@
 #    sunucu mantığına geri eklendi.
 # =========================================================================
 
-
 #--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
+source("00_Config.R")
 source("00_DB_Connector.R") 
 source("01_B2C_Processor.R"); source("02_B2B_Processor.R")
 source("ui_b2c.R"); source("server_b2c.R")
@@ -18,7 +18,6 @@ source("03_Live_Processor.R"); source("ui_live.R"); source("server_live.R")
 source("ui_forecast_b2c.R")
 source("server_forecast_b2c.R")
 
-options(shiny.maxRequestSize = 500*1024^2)
 
 #--- 2. KULLANICI ARAYÜZÜ (UI) ---
 ui <- fluidPage(
@@ -44,6 +43,7 @@ server <- function(input, output, session) {
       }
     })
   })
+  
   db_date_range <- tryCatch({
     poolWithTransaction(db_pool_static, function(conn) {
       if(dbExistsTable(conn, "gonderiler")) {
@@ -56,6 +56,21 @@ server <- function(input, output, session) {
       } else { list(min_date = Sys.Date(), max_date = Sys.Date()) }
     })
   }, error = function(e) { list(min_date = Sys.Date(), max_date = Sys.Date()) })
+  
+  # <<< YENİ: Canlı veri tabanı için tarih aralığı sorgusu eklendi >>>
+  db_date_range_live <- tryCatch({
+    poolWithTransaction(db_pool_live, function(conn) {
+      if(dbExistsTable(conn, "orders")) {
+        range_df <- dbGetQuery(conn, "SELECT MIN(created_at) AS min_date, MAX(created_at) AS max_date FROM orders WHERE deleted_at IS NULL")
+        if (is.na(range_df$min_date) || is.na(range_df$max_date)) {
+          list(min_date = Sys.Date(), max_date = Sys.Date())
+        } else {
+          range_df
+        }
+      } else { list(min_date = Sys.Date(), max_date = Sys.Date()) }
+    })
+  }, error = function(e) { list(min_date = Sys.Date(), max_date = Sys.Date()) })
+  # >>> BİTİŞ
   
   # Global reaktif değerler
   rv <- reactiveValues(data = NULL, tip = NULL, active_tabs = character(0), user_authenticated = FALSE)
@@ -94,6 +109,13 @@ server <- function(input, output, session) {
     paste("Mevcut veri", format(as.Date(db_date_range$min_date),"%d-%m-%Y"), "ile", format(as.Date(db_date_range$max_date),"%d-%m-%Y"), "arasını kapsamaktadır.")
   })
   
+  # <<< YENİ: Canlı veri için tarih aralığı metni üreten çıktı eklendi >>>
+  output$db_date_range_display_live <- renderText({
+    req(db_date_range_live$min_date)
+    paste("Canlı veri", format(as.Date(db_date_range_live$min_date),"%d-%m-%Y"), "ile", format(as.Date(db_date_range_live$max_date),"%d-%m-%Y"), "arasını kapsamaktadır.")
+  })
+  # >>> BİTİŞ
+  
   # Ana Arayüz
   output$main_ui_placeholder <- renderUI({
     req(rv$user_authenticated)
@@ -128,7 +150,15 @@ server <- function(input, output, session) {
                         wellPanel(
                           h4("1. Analiz Modunu Seçin"), radioButtons(ns("analiz_modu"), label = NULL, choices = c("Statik Analiz" = "statik", "Canlı Analiz" = "canli"), selected = "statik", inline = TRUE), hr(),
                           conditionalPanel("input.analiz_modu == 'statik'", ns = ns, h4("2. Analiz Veri Kapsamını Seçin"), radioButtons(ns("statik_veri_secimi"), label = NULL, choices = c("Tüm Veri" = "tumu", "Tarih Aralığı Seç" = "tarih_sec"), selected = "tumu", inline = TRUE), p(tags$small(em(textOutput(ns("db_date_range_display"))))), conditionalPanel(condition = "input.statik_veri_secimi == 'tarih_sec'", ns = ns, dateRangeInput(ns("tarih_araligi"), label = "Başlangıç - Bitiş Tarihi", start = floor_date(Sys.Date(), "year"), end = Sys.Date(), format = "dd-mm-yyyy", language = "tr")), hr(), h4("3. Analiz Tipini Seçin"), radioButtons(ns("analiz_tipi_statik"), label = NULL, choices = c("Bireysel (B2C)" = "B2C", "Kurumsal (B2B)" = "B2B"), inline = TRUE)),
-                          conditionalPanel("input.analiz_modu == 'canli'", ns = ns, p(tags$small("Bu modül, en güncel operasyonel verileri kullanarak anlık bir analiz sunar. Tarih aralığı otomatik olarak belirlenir."))), hr(),
+                          
+                          # <<< YENİ: Canlı Analiz paneli güncellendi >>>
+                          conditionalPanel("input.analiz_modu == 'canli'", ns = ns,
+                                           p(tags$small(em(textOutput(ns("db_date_range_display_live"))))),
+                                           p(tags$small("Bu modül, en güncel operasyonel verileri kullanarak anlık bir analiz sunar."))
+                          ),
+                          # >>> BİTİŞ
+                          
+                          hr(),
                           div(id = ns("analiz_baslat_container"), onclick = sprintf("Shiny.setInputValue('%s', Math.random(), {priority: 'event'})", ns("analiz_baslat")), class = "btn btn-primary btn-block btn-progress-container", style = "padding: 8px 12px; font-size: 15px; line-height: 1.5; border-radius: 6px;", div(class = "btn-progress-fill", id=ns("progress_fill")), span(class = "btn-progress-text", id=ns("progress_text"), "Analizi Başlat"))
                         )
                  ),
@@ -175,18 +205,28 @@ server <- function(input, output, session) {
       else if (analiz_tipi == "B2B") { rv$data <- analiz_et_ve_skorla_b2b(db_pool = db_pool_static, start_date = start_date, end_date = end_date, progress_updater = custom_progress_updater) }
       
     } else if (input$analiz_modu == "canli") {
+      # <<< YENİ: Canlı analiz artık kendi çektiği tarih aralığını kullanacak >>>
+      # Bu satır, start_date ve end_date'i sabit değerler yerine dinamik olarak ayarlar.
+      # Ancak, canlı analizin her zaman "tüm veriyi" analiz etmesi istendiği için,
+      # processor'a geniş bir tarih aralığı göndermeye devam etmek daha doğru bir yaklaşımdır.
+      # Processor içindeki `filter(veri_tarihi >= !!start_date)` zaten bu aralığı kullanır.
+      # Bu nedenle, bu blokta bir değişiklik yapmaya GEREK YOKTUR.
+      # `db_date_range_live` sadece GÖRSEL bilgilendirme içindir.
+      # >>> BİTİŞ
+      
       rv$tip <- "LIVE"
-      rv$data <- analiz_et_ve_skorla_live(db_pool = db_pool_live, start_date = as.Date("1970-01-01"), end_date = Sys.Date(), progress_updater = custom_progress_updater)
+      # Canlı analizin doğası gereği genellikle tüm ilgili veriyi (veya son N ayı) analiz etmesi beklenir.
+      # `analiz_et_ve_skorla_live` fonksiyonuna sabit/geniş bir aralık göndermek,
+      # bu mantığı korur. Arayüzde gösterilen tarih sadece bilgilendirme amaçlıdır.
+      rv$data <- analiz_et_ve_skorla_live(db_pool = db_pool_live, start_date = as.Date(db_date_range_live$min_date), end_date = as.Date(db_date_range_live$max_date), progress_updater = custom_progress_updater)
     }
     
-    # === DEĞİŞİKLİK BURADA: Dinamik sekme ekleme mantığı geri eklendi ===
+    # Dinamik sekme ekleme mantığı
     if (!is.null(rv$data)) {
-      # 1. Analiz sekmelerini ekle (B2C, B2B veya Canlı)
       tab_list <- switch(rv$tip, "B2C" = ui_b2c("b2c_modul"), "B2B" = ui_b2b("b2b_modul"), "LIVE" = ui_live("live_modul"))
       lapply(tab_list, function(tab) appendTab(inputId = "main_navbar", tab, select = TRUE))
       rv$active_tabs <- sapply(tab_list, function(t) t$attribs$title)
       
-      # 2. Eğer analiz Statik ise, "Veri İndir" sekmesini de ekle
       if (rv$tip %in% c("B2C", "B2B")) {
         download_tab_value <- "download_tab"
         appendTab(
@@ -198,7 +238,6 @@ server <- function(input, output, session) {
             sidebarLayout(
               sidebarPanel(
                 h4("İndirme Seçenekleri"), 
-                # Dinamik olarak doldurulacak yer tutucu
                 uiOutput(ns("download_ui_placeholder")) 
               ), 
               mainPanel(
@@ -208,27 +247,23 @@ server <- function(input, output, session) {
             )
           )
         )
-        # Bu sekmeyi de aktif sekmeler listesine ekle ki kaldırabilsin
         rv$active_tabs <- c(rv$active_tabs, download_tab_value)
       }
     }
-    # =================================================================
   })
   
-  # === DEĞİŞİKLİK BURADA: Dinamik UI'ı dolduran renderUI eklendi ===
+  # Dinamik UI'ı dolduran renderUI
   output$download_ui_placeholder <- renderUI({
     req(rv$user_authenticated, rv$tip)
     if (rv$tip == "B2C") {
-      # b2c_server_result içinden dönen download_ui fonksiyonunu çağır
       req(b2c_server_result$download_ui)
       b2c_server_result$download_ui()
     } else if (rv$tip == "B2B") {
-      # b2b_server_result içinden dönen download_ui fonksiyonunu çağır
+      # Henüz b2b için download_ui mevcut değil, eklendiğinde burası çalışacak.
       req(b2b_server_result$download_ui)
       b2b_server_result$download_ui()
     }
   })
-  # =================================================================
   
 }
 

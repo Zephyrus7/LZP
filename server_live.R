@@ -99,7 +99,7 @@ server_live <- function(id, data, theme_reactive) {
     output$full_analysis_title <- renderText({
       req(full_analysis_data())
       total_orders <- sum(full_analysis_data()$Adet)
-      paste0("Tüm Siparişlerin Durum Dağılımı (Toplam: ", format(total_orders, big.mark = "."), " Adet)")
+      paste0("Tüm Siparişlerin Durum Dağılımı (Toplam: ", format(total_orders, big.mark = ".", decimal.mark = ","), " Adet)")
     })
     
     # Tabloyu render et

@@ -1,13 +1,3 @@
-# =================================================================
-#      CANLI ANALİZ VERİ İŞLEME MOTORU (BELİRSİZLİK GİDERİLDİ)
-# =================================================================
-# DÜZELTME: 'created_at' sütununun birden fazla tabloda olması
-#           nedeniyle oluşan belirsizlik, sorgunun her aşamasında
-#           sütunların hangi tablodan geldiği açıkça belirtilerek
-#           giderilmiştir. Bu, "column doesn't exist" hatasını
-#           kesin olarak çözecektir.
-# =================================================================
-
 library(dplyr)
 library(dbplyr)
 library(DBI)
