@@ -112,6 +112,57 @@ server_live <- function(id, data, theme_reactive) {
         options = list(pageLength = 15, searching = TRUE)
       )
     })
+    # --- 1. Teslimat Performansı Sekmesi İçin Toplam Sayı ---
+    output$teslimat_total_count_ui <- renderUI({
+      # Bu sekmenin reaktif verisini al
+      df <- teslimat_performans_data()
+      req(df)
+      
+      # Toplam satır sayısını hesapla
+      total_count <- nrow(df)
+      if (total_count == 0) return(NULL)
+      
+      # Statik modüldeki gibi formatlı bir UI çıktısı oluştur
+      tags$div(
+        style = "text-align: right;",
+        h5("Filtrelenen Gönderi Sayısı:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"),
+        h4(format(total_count, big.mark = "."), style = "margin: 0; font-weight: bold;")
+      )
+    })
+    
+    # --- 2. Operasyonel Alarmlar Sekmesi İçin Toplam Sayı ---
+    output$operasyonel_total_count_ui <- renderUI({
+      # Bu sekmenin reaktif verisini al
+      df <- operasyonel_data_filtrelenmis()
+      req(df)
+      
+      # Toplam satır sayısını hesapla
+      total_count <- nrow(df)
+      if (total_count == 0) return(NULL)
+      
+      tags$div(
+        style = "text-align: right;",
+        h5("Açık Gönderi Sayısı:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"),
+        h4(format(total_count, big.mark = "."), style = "margin: 0; font-weight: bold;")
+      )
+    })
+    
+    # --- 3. İade Süreçleri Sekmesi İçin Toplam Sayı ---
+    output$iade_total_count_ui <- renderUI({
+      # Bu sekmenin reaktif verisini al
+      df <- iade_performans_data()
+      req(df)
+      
+      # Toplam satır sayısını hesapla
+      total_count <- nrow(df)
+      if (total_count == 0) return(NULL)
+      
+      tags$div(
+        style = "text-align: right;",
+        h5("Filtrelenen İade Sayısı:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"),
+        h4(format(total_count, big.mark = "."), style = "margin: 0; font-weight: bold;")
+      )
+    })
     
   }) # moduleServer sonu
 }

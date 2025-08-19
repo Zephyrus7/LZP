@@ -1,8 +1,10 @@
+# ui_live.R - GÜNCELLENMİŞ HAL (Toplam Sayı Göstergeleri Eklendi)
+
 ui_live <- function(id) {
   ns <- NS(id)
   
   list(
-    # --- SEKME 1: Teslimat Performansı (Değişiklik Yok) ---
+    # --- SEKME 1: Teslimat Performansı (Güncellendi) ---
     tabPanel(
       title = "Teslimat Performansı",
       icon = icon("truck-fast"),
@@ -15,7 +17,11 @@ ui_live <- function(id) {
                      p(tags$small(em("Yukarıdaki filtrelere göre teslimat sürecinin adımlarını (Alım, Partnere Verme, Teslimat) analiz edin.")))
         ),
         mainPanel(width = 9,
-                  h3("Teslimat Süreç Adımlarının Performansı"),
+                  # <<< DEĞİŞİKLİK BURADA: Başlık ve sayı göstergesi bir div içine alındı >>>
+                  div(style = "display: flex; justify-content: space-between; align-items: center;",
+                      h3("Teslimat Süreç Adımlarının Performansı"),
+                      uiOutput(ns("teslimat_total_count_ui"))
+                  ),
                   fluidRow(
                     column(4, wellPanel(style="background-color: #eaf5ff", h5("Ort. Alım Süresi (Saat)"), h3(textOutput(ns("alim_suresi_val"))))),
                     column(4, wellPanel(style="background-color: #fff4e2", h5("Ort. Partnere Verme Süresi (Saat)"), h3(textOutput(ns("partnere_verme_suresi_val"))))),
@@ -28,7 +34,7 @@ ui_live <- function(id) {
       )
     ),
     
-    # --- SEKME 2: Operasyonel Alarmlar (Değişiklik Yok) ---
+    # --- SEKME 2: Operasyonel Alarmlar (Güncellendi) ---
     tabPanel(
       title = "Operasyonel Alarmlar",
       icon = icon("bell"),
@@ -43,7 +49,11 @@ ui_live <- function(id) {
                                   value = 3, min = 1, max = 30, step = 1)
         ),
         mainPanel(width = 9,
-                  h3("Açık Gönderilerin Anlık Durum Dağılımı"),
+                  # <<< DEĞİŞİKLİK BURADA: Başlık ve sayı göstergesi bir div içine alındı >>>
+                  div(style = "display: flex; justify-content: space-between; align-items: center;",
+                      h3("Açık Gönderilerin Anlık Durum Dağılımı"),
+                      uiOutput(ns("operasyonel_total_count_ui"))
+                  ),
                   plotOutput(ns("acik_gonderi_plot"), height = "450px"),
                   hr(),
                   h3("Hareketsiz Gönderi Alarm Listesi"),
@@ -53,7 +63,7 @@ ui_live <- function(id) {
       )
     ),
     
-    # --- SEKME 3: İade Süreçleri (Değişiklik Yok) ---
+    # --- SEKME 3: İade Süreçleri (Güncellendi) ---
     tabPanel(
       title = "İade Süreçleri",
       icon = icon("undo"),
@@ -66,7 +76,11 @@ ui_live <- function(id) {
                      p(tags$small(em("Yukarıdaki filtrelere göre iade sürecinin adımlarını analiz edin.")))
         ),
         mainPanel(width = 9,
-                  h3("İade Süreç Adımlarının Performansı"),
+                  # <<< DEĞİŞİKLİK BURADA: Başlık ve sayı göstergesi bir div içine alındı >>>
+                  div(style = "display: flex; justify-content: space-between; align-items: center;",
+                      h3("İade Süreç Adımlarının Performansı"),
+                      uiOutput(ns("iade_total_count_ui"))
+                  ),
                   fluidRow(
                     column(4, wellPanel(style="background-color: #ffeaea", h5("Ort. Müşterinin Gönderme Süresi (Saat)"), h3(textOutput(ns("musteri_iade_suresi_val"))))),
                     column(4, wellPanel(style="background-color: #fff4e2", h5("Ort. Partner İade Süresi (Saat)"), h3(textOutput(ns("partner_iade_suresi_val"))))),
@@ -79,10 +93,9 @@ ui_live <- function(id) {
       )
     ),
     
-    # ========================================================================
-    #               YENİ SEKME 4: TÜM SİPARİŞLER ÖZETİ
-    # ========================================================================
+    # --- SEKME 4: Tüm Siparişler Özeti (Değişiklik Yok) ---
     tabPanel(
+      # ... (Bu sekmenin içeriği aynı kalıyor) ...
       title = "Tüm Siparişler Özeti",
       icon = icon("archive"),
       fluidPage(
@@ -92,7 +105,6 @@ ui_live <- function(id) {
           actionButton(ns("run_full_analysis_button"), "Raporu Oluştur ve Görüntüle", icon = icon("cogs"), class = "btn-primary btn-lg")
         ),
         hr(),
-        # Sonuçlar başlangıçta gizli olacak
         shinyjs::hidden(
           div(id = ns("full_analysis_results_panel"),
               h3(textOutput(ns("full_analysis_title"))),
