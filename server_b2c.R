@@ -96,14 +96,110 @@ server_b2c <- function(id, data, theme_reactive) {
     output$optimal_firma <- renderText({ df <- ilce_karsilastirma_data(); if (nrow(df) == 0) "Veri Yok" else df %>% arrange(desc(Bayes_EPS)) %>% slice(1) %>% pull(kargo_turu) })
     output$hizli_firma <- renderText({ df <- ilce_karsilastirma_data(); if (nrow(df) == 0) "Veri Yok" else df %>% arrange(desc(hiz_puani)) %>% slice(1) %>% pull(kargo_turu) })
     output$guvenilir_firma <- renderText({ df <- ilce_karsilastirma_data(); if (nrow(df) == 0) "Veri Yok" else df %>% arrange(sikayet_orani_yuzde) %>% slice(1) %>% pull(kargo_turu) })
-    output$detay_tablosu <- DT::renderDataTable({ req(ilce_karsilastirma_data()); df_for_display <- ilce_karsilastirma_data() %>% mutate( sikayet_orani_gosterim = paste0(round(sikayet_orani_yuzde, 1), "% (", toplam_sikayet_sayisi, " adet)"), ortalama_desi_gosterim = round(ortalama_desi, 2), gonderi_sayisi_gosterim = paste0(toplam_gonderi_sayisi, " (%", round(hacim_yuzdesi, 0), ")"), Bayes_EPS_display = paste0('<span title="', Bayes_Aciklama, '">', scales::percent(Bayes_EPS, accuracy = 0.01), '</span>') ) %>% arrange(desc(Bayes_EPS)); df_for_display %>% select( `Kargo Firması` = kargo_turu, `Hacim Ayarlı Skor` = Bayes_EPS_display, `Ham Skor` = Ham_EPS, `Şikayet Oranı` = sikayet_orani_gosterim, `Ortalama Desi` = ortalama_desi_gosterim, `Gönderi Sayısı (% Hacim)` = gonderi_sayisi_gosterim ) %>% DT::datatable(escape = FALSE, rownames = FALSE, selection = 'single', options = list(pageLength = 10, searching = FALSE, scrollX = TRUE)) %>% formatPercentage('Ham Skor', digits = 2) })
+    output$detay_tablosu <- DT::renderDataTable({
+      req(ilce_karsilastirma_data())
+      df_for_display <- ilce_karsilastirma_data() %>%
+        mutate(
+          sikayet_orani_gosterim = paste0(toplam_sikayet_sayisi, " adet (%", round(sikayet_orani_yuzde, 1), ")"),
+          ortalama_desi_gosterim = as.character(round(ortalama_desi, 2)),
+          gonderi_sayisi_gosterim = paste0(toplam_gonderi_sayisi, " (%", round(hacim_yuzdesi, 0), ")"),
+          Bayes_EPS_display = paste0('<span title="', Bayes_Aciklama, '">', scales::percent(Bayes_EPS, accuracy = 0.01), '</span>'),
+          
+          # <<< YENİ VE KRİTİK DEĞİŞİKLİK BURADA >>>
+          # Ham Skor'u da en başından metne (string) çeviriyoruz.
+          # Yüzde formatını manuel olarak ekleyerek `formatPercentage` ihtiyacını ortadan kaldırıyoruz.
+          Ham_Skor_Gosterim = paste0(round(Ham_EPS * 100, 2), "%")
+        ) %>%
+        arrange(desc(Bayes_EPS))
+      
+      df_for_display %>%
+        # Sütun sırasını isteğinize göre koruyoruz.
+        select(
+          `Kargo Firması` = kargo_turu,
+          `Hacim Ayarlı Skor` = Bayes_EPS_display,
+          `Ham Skor` = Ham_Skor_Gosterim, # Artık metin formatındaki yeni sütunu kullanıyoruz.
+          `Şikayet Oranı` = sikayet_orani_gosterim,
+          `Ortalama Desi` = ortalama_desi_gosterim,
+          `Gönderi Sayısı (% Hacim)` = gonderi_sayisi_gosterim
+        ) %>%
+        # `formatPercentage` fonksiyonunu tamamen kaldırıyoruz, çünkü formatlamayı yukarıda yaptık.
+        DT::datatable(escape = FALSE, rownames = FALSE, selection = 'single', options = list(pageLength = 10, searching = FALSE, scrollX = TRUE)) })
     observeEvent(list(input$secilen_firma_karne, input$karne_sehir_secimi), { req(input$secilen_firma_karne); shinyjs::hide("content_karne_grafik"); shinyjs::hide("content_karne_tablo"); shinyjs::hide("panel_karne_veri_yok"); shinyjs::show("placeholder_karne_grafik"); shinyjs::show("placeholder_karne_tablo") }, ignoreInit = TRUE, ignoreNULL = TRUE)
     observe({ req(firma_karne_filtrelenmis_veri()); data_for_plot <- firma_karne_filtrelenmis_veri() %>% filter(toplam_gonderi_sayisi >= (input$min_hacim_karne %||% 0)); if (nrow(data_for_plot) > 0) { shinyjs::hide("placeholder_karne_grafik", anim = TRUE, animType = "fade"); shinyjs::show("content_karne_grafik", anim = TRUE, animType = "fade"); shinyjs::hide("placeholder_karne_tablo", anim = TRUE, animType = "fade"); shinyjs::show("content_karne_tablo", anim = TRUE, animType = "fade"); shinyjs::hide("panel_karne_veri_yok") } else { shinyjs::hide("placeholder_karne_grafik"); shinyjs::hide("placeholder_karne_tablo"); shinyjs::hide("content_karne_grafik"); shinyjs::hide("content_karne_tablo"); shinyjs::show("panel_karne_veri_yok", anim = TRUE, animType = "fade") } })
     output$firma_karne_basligi <- renderText({ req(input$secilen_firma_karne); paste(input$secilen_firma_karne, "Firmasının Anlık Bölgesel Performans Karnesi") })
     output$firma_karne_grafigi <- renderPlot({ req(firma_karne_filtrelenmis_veri(), input$karne_siralama_tipi, input$min_hacim_karne); df_processed <- firma_karne_filtrelenmis_veri() %>% filter(toplam_gonderi_sayisi >= input$min_hacim_karne) %>% mutate(il_ilce = str_to_upper(paste0(sehir, " - ", ilce), "tr")); n_rows_to_show <- min(15, nrow(df_processed)); if(n_rows_to_show == 0) { return(ggplot() + theme_void()) }; if (isTRUE(theme_reactive() == "dark")) { plot_theme <- theme_minimal(base_size = 14) + theme(panel.background = element_rect(fill = "#343A40", color = NA), plot.background = element_rect(fill = "#343A40", color = NA), panel.grid.major.y = element_blank(), panel.grid.major.x = element_line(color = "#495057"), panel.grid.minor = element_blank(), text = element_text(color = "#E9ECEF"), axis.text = element_text(color = "#E9ECEF"), title = element_text(color = "#FFFFFF")) } else { plot_theme <- theme_minimal(base_size = 14) }; if(input$karne_siralama_tipi == "iyi") { df_plot <- df_processed %>% arrange(desc(Ham_EPS)) %>% head(n_rows_to_show); plot_aes <- aes(x = reorder(il_ilce, Ham_EPS), y = Ham_EPS, fill = Ham_EPS); plot_title <- paste("Anlık Ağırlıklara Göre En İyi Performanslar (Min.", input$min_hacim_karne, "Gönderi)"); plot_fill_scale <- scale_fill_gradient(low = "#a7d8a5", high = "#2a6f28") } else { df_plot <- df_processed %>% arrange(Ham_EPS) %>% head(n_rows_to_show); plot_aes <- aes(x = reorder(il_ilce, -Ham_EPS), y = Ham_EPS, fill = Ham_EPS); plot_title <- paste("Anlık Ağırlıklara Göre En Kötü Performanslar (Min.", input$min_hacim_karne, "Gönderi)"); plot_fill_scale <- scale_fill_gradient(low = "#f8d7da", high = "#d9534f") }; ggplot(df_plot, plot_aes) + geom_col(show.legend = FALSE) + coord_flip() + labs(title = plot_title, x = "Bölge (İl - İlçe)", y = "Genel Skor (EPS)") + plot_fill_scale + plot_theme + scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 1)) }, bg = "transparent")
-    output$firma_karne_tablosu <- DT::renderDataTable({ req(firma_karne_tablo_verisi()); df <- firma_karne_tablo_verisi(); df %>% select(`İlçe` = ilce, `Şehir` = sehir, `Genel Skor (EPS)` = Ham_EPS, `Başarı Oranı` = dinamik_basari_orani, `Şikayet Oranı` = sikayet_orani_gosterim, `Ort. Teslim Süresi (Saat)` = ortalama_teslim_suresi, `Gönderi Sayısı` = toplam_gonderi_sayisi) %>% DT::datatable(rownames = FALSE, selection = 'single', options = list(pageLength = 10, searching = TRUE, scrollX = TRUE)) %>% formatPercentage(c('Genel Skor (EPS)', 'Başarı Oranı'), digits = 1) })
+    output$firma_karne_tablosu <- DT::renderDataTable({
+      req(firma_karne_tablo_verisi())
+      df <- firma_karne_tablo_verisi()
+      
+      df %>%
+        # <<< YENİ MUTATE BLOĞU: Tüm sütunları formatlayıp sola yaslamak için metne çeviriyoruz >>>
+        mutate(
+          # Yüzdeleri manuel olarak formatlayıp sonuna "%" ekleyerek metne çeviriyoruz.
+          Genel_Skor_Gosterim = paste0(round(Ham_EPS * 100, 1), "%"),
+          Basari_Orani_Gosterim = paste0(round(dinamik_basari_orani * 100, 1), "%"),
+          
+          # Diğer sayısal sütunları da as.character() ile metne çeviriyoruz.
+          Ort_Teslim_Suresi_Gosterim = as.character(round(ortalama_teslim_suresi, 2)),
+          Gonderi_Sayisi_Gosterim = as.character(toplam_gonderi_sayisi)
+        ) %>%
+        # Artık formatlanmış ve metne çevrilmiş yeni "_Gosterim" sütunlarını seçiyoruz.
+        select(
+          `İlçe` = ilce,
+          `Şehir` = sehir,
+          `Genel Skor (EPS)` = Genel_Skor_Gosterim,
+          `Başarı Oranı` = Basari_Orani_Gosterim,
+          `Şikayet Oranı` = sikayet_orani_gosterim, # Bu zaten metin formatındaydı
+          `Ort. Teslim Süresi (Saat)` = Ort_Teslim_Suresi_Gosterim,
+          `Gönderi Sayısı` = Gonderi_Sayisi_Gosterim
+        ) %>%
+        # `formatPercentage` fonksiyonunu kaldırıyoruz çünkü formatlamayı yukarıda kendimiz yaptık.
+        DT::datatable(
+          rownames = FALSE,
+          selection = 'single',
+          options = list(pageLength = 10, searching = TRUE, scrollX = TRUE)
+        ) })
     output$marka_analizi_baslik <- renderText({ req(input$secilen_marka_analizi); paste(input$secilen_marka_analizi, "Markasının Kargo Firması Performans Raporu") })
-    output$marka_analizi_tablosu <- DT::renderDataTable({ df <- marka_analizi_data(); req(df); df_for_display <- df %>% mutate(Bayes_EPS_display = paste0('<span title="', Bayes_Aciklama, '">', scales::percent(Bayes_EPS, accuracy = 0.01), '</span>'), sikayet_orani_gosterim = paste0(round(sikayet_orani_yuzde, 1), "% (", toplam_sikayet_sayisi, " adet)")) %>% select(`Kargo Firması` = kargo_turu, `Hacim Ayarlı Skor` = Bayes_EPS_display, `Ham Skor` = Ham_EPS, `Ort. Teslim Süresi (Saat)` = ortalama_teslim_suresi, `Başarı Oranı` = dinamik_basari_orani, `Şikayet Oranı` = sikayet_orani_gosterim, `Toplam Gönderi` = toplam_gonderi_sayisi); DT::datatable(df_for_display, escape = FALSE, rownames = FALSE, selection = 'single', options = list(pageLength = 10, searching = TRUE, scrollX = TRUE)) %>% formatPercentage(c('Ham Skor', 'Başarı Oranı'), digits = 2) %>% formatRound('Ort. Teslim Süresi (Saat)', digits = 2) })
+    output$marka_analizi_tablosu <- DT::renderDataTable({
+      df <- marka_analizi_data()
+      req(df)
+      
+      df_for_display <- df %>%
+        # <<< YENİ MUTATE BLOĞU: Tüm sütunları formatlayıp sola yaslamak için metne çeviriyoruz >>>
+        mutate(
+          # HTML içeren bu sütun zaten sola yaslı
+          Bayes_EPS_display = paste0('<span title="', Bayes_Aciklama, '">', scales::percent(Bayes_EPS, accuracy = 0.01), '</span>'),
+          
+          # Şikayet oranı formatını isteğinize göre güncelleyip metin olarak tutuyoruz
+          sikayet_orani_gosterim = paste0(toplam_sikayet_sayisi, " adet (%", round(sikayet_orani_yuzde, 1), ")"),
+          
+          # Yüzdeleri manuel olarak formatlayıp sonuna "%" ekleyerek metne çeviriyoruz.
+          Ham_Skor_Gosterim = paste0(round(Ham_EPS * 100, 2), "%"),
+          Basari_Orani_Gosterim = paste0(round(dinamik_basari_orani * 100, 2), "%"),
+          
+          # Diğer sayısal sütunları da as.character() ile metne çeviriyoruz.
+          Ort_Teslim_Suresi_Gosterim = as.character(round(ortalama_teslim_suresi, 2)),
+          Toplam_Gonderi_Gosterim = as.character(toplam_gonderi_sayisi)
+        ) %>%
+        # Artık formatlanmış ve metne çevrilmiş yeni "_Gosterim" sütunlarını seçiyoruz.
+        select(
+          `Kargo Firması` = kargo_turu,
+          `Hacim Ayarlı Skor` = Bayes_EPS_display,
+          `Ham Skor` = Ham_Skor_Gosterim,
+          `Ort. Teslim Süresi (Saat)` = Ort_Teslim_Suresi_Gosterim,
+          `Başarı Oranı` = Basari_Orani_Gosterim,
+          `Şikayet Oranı` = sikayet_orani_gosterim,
+          `Toplam Gönderi` = Toplam_Gonderi_Gosterim
+        )
+      
+      # `formatPercentage` ve `formatRound` fonksiyonlarını kaldırıyoruz.
+      DT::datatable(
+        df_for_display,
+        escape = FALSE,
+        rownames = FALSE,
+        selection = 'single',
+        options = list(pageLength = 10, searching = TRUE, scrollX = TRUE)
+      )  }) 
     output$show_sikayet_panel <- reactive({ req(sikayet_analizi_ozet_verisi()); return(nrow(sikayet_analizi_ozet_verisi()) > 0) }); outputOptions(output, 'show_sikayet_panel', suspendWhenHidden = FALSE)
     output$sikayet_analizi_baslik <- renderText({ req(input$sikayet_firma_secimi, input$sikayet_sehir_secimi); firma_adi <- if(input$sikayet_firma_secimi == "all_companies") "Tüm Firmalar" else input$sikayet_firma_secimi; bolge_adi <- if(input$sikayet_sehir_secimi == "all_cities") "Tüm Türkiye" else str_to_upper(input$sikayet_sehir_secimi, "tr"); paste(firma_adi, "için", bolge_adi, "Bölgesindeki Şikayet Dağılımı") })
     output$sikayet_analizi_grafigi <- renderPlot({ df_summary <- sikayet_analizi_ozet_verisi(); req(nrow(df_summary) > 0); df_plot <- df_summary %>% head(15); if (isTRUE(theme_reactive() == "dark")) { plot_theme <- theme_minimal(base_size = 14) + theme(panel.background = element_rect(fill = "#343A40", color = NA), plot.background = element_rect(fill = "#343A40", color = NA), panel.grid.major.y = element_blank(), panel.grid.minor.x = element_blank(), panel.grid.major.x = element_line(linetype = "dashed", color = "#495057"), text = element_text(color = "#E9ECEF"), axis.text = element_text(color = "#E9ECEF"), title = element_text(color = "#FFFFFF")) } else { plot_theme <- theme_minimal(base_size = 14) + theme(panel.grid.major.y = element_blank(), panel.grid.minor.x = element_blank(), panel.grid.major.x = element_line(linetype = "dashed", color = "gray")) }; if(input$sikayet_firma_secimi == "all_companies") { plot_aes <- aes(x = reorder(kargo_turu, toplam_sikayet_sayisi), y = toplam_sikayet_sayisi); x_label <- "Kargo Firması"; plot_title <- "Firmalara Göre En Çok Şikayet Alınanlar" } else { df_plot <- df_plot %>% mutate(il_ilce = str_to_upper(paste0(sehir, " - ", ilce), "tr")); plot_aes <- aes(x = reorder(il_ilce, toplam_sikayet_sayisi), y = toplam_sikayet_sayisi); x_label <- "Bölge (İl - İlçe)"; plot_title <- "Bölgelere Göre En Çok Şikayet Alınanlar" }; ggplot(df_plot, plot_aes) + geom_col(fill = "#d9534f") + geom_text(aes(label = toplam_sikayet_sayisi), hjust = -0.2, size = 4, color = if(isTRUE(theme_reactive() == "dark")) "white" else "black") + coord_flip() + labs(title = plot_title, x = x_label, y = "Toplam Şikayet Sayısı") + plot_theme }, bg = "transparent")
