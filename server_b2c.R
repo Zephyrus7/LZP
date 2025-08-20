@@ -1,429 +1,51 @@
+# =========================================================================
+#             B2C SERVER - ANA ORKESTRA ŞEFİ (NİHAİ DOĞRU YAPI)
+# =========================================================================
+
 server_b2c <- function(id, data, theme_reactive) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
-    # ========================================================================
-    #          >>> YENİ EKLENEN KOD: Tahminleme Modülünü Çağır <<<
-    # ========================================================================
-    # Bu satır, tahminleme sekmesindeki tüm hesaplamaları ve interaktiviteyi
-    # hayata geçirecek olan server fonksiyonunu aktive eder.
-    server_forecast_b2c(
-      id = "forecast_b2c_modul", 
-      processed_data = ana_veri,        # Processor'dan gelen tüm veriyi aktar
-      theme_reactive = theme_reactive   # Dark mode bilgisini aktar
-    )
-    # ========================================================================
-    
-    
+    # 1. TEMEL REAKTİF VERİLERİ ve DEĞİŞKENLERİ OLUŞTUR
+    ana_veri <- reactive({ req(data()); data() })
+    ana_veri_skorlari <- reactive({ 
+      req(ana_veri())
+      ana_veri()$sonuclar %>% 
+        filter(!kargo_turu %in% c("Mağazaya Teslim", "Mağazalar Arası Transfer", "21")) 
+    })
+    aykiri_veriler <- reactive({ req(ana_veri()); ana_veri()$aykiri_degerler })
+    ham_veri_temiz <- reactive({ req(ana_veri()); ana_veri()$ham_veri_temiz })
+    karsilastirma_verisi <- reactiveVal(NULL)
     b2b_turleri <- c("Mağazaya Teslim", "Mağazalar Arası Transfer", "21")
     
-    # --- YARDIMCI FONKSİYONLAR ---
-    safe_rescale <- function(x, to = c(0, 1)) {
-      unique_vals <- unique(na.omit(x))
-      if (length(unique_vals) < 2) { return(ifelse(is.na(x), NA_real_, 1)) }
-      scales::rescale(x, to = to)
-    }
+    # 2. TÜM ALT MODÜLLERİ YEREL ORTAMA YÜKLE
+    # `local = TRUE` sayesinde bu dosyaların içindeki kod, sanki buraya
+    # kopyalanmış gibi çalışır ve tüm değişken/reaktifler aynı ortamda olur.
+    source("server_b2c_reactives.R", local = TRUE)
+    source("server_b2c_outputs.R", local = TRUE)
+    source("server_b2c_observers.R", local = TRUE)
     
-    format_date_range <- function(dates) {
-      if (is.null(dates)) return("")
-      paste(format(as.Date(dates[1]), "%d %b %Y"), "-", format(as.Date(dates[2]), "%d %b %Y"))
-    }
-    
-    generate_speed_comparison_report <- function(data) {
-      b2b_turleri_to_exclude <- c("Mağazaya Teslim", "Mağazalar Arası Transfer", "B2B")
-      base_data <- data %>% filter(!kargo_turu %in% b2b_turleri_to_exclude) %>% mutate(bolge = paste(sehir, ilce, sep=" - ")) %>% select(bolge, kargo_turu, ortalama_teslim_suresi, toplam_gonderi_sayisi)
-      best_worst_performers <- base_data %>% group_by(bolge) %>% summarise(en_iyi_firma = kargo_turu[which.min(ortalama_teslim_suresi)], en_kotu_firma = kargo_turu[which.max(ortalama_teslim_suresi)], .groups = 'drop')
-      regional_summary <- base_data %>% group_by(bolge) %>% summarise(toplam_gonderi = sum(toplam_gonderi_sayisi, na.rm = TRUE), genel_ortalama_hiz = weighted.mean(ortalama_teslim_suresi, toplam_gonderi_sayisi, na.rm = TRUE), .groups = 'drop')
-      pivoted_data <- base_data %>% pivot_wider(id_cols = bolge, names_from = kargo_turu, values_from = c(toplam_gonderi_sayisi, ortalama_teslim_suresi), names_sep = "_", values_fill = list(toplam_gonderi_sayisi = 0, ortalama_teslim_suresi = NA))
-      final_report <- pivoted_data %>% left_join(regional_summary, by = "bolge") %>% left_join(best_worst_performers, by = "bolge")
-      firmalar <- unique(base_data$kargo_turu)
-      firma_sutunlari_sirali <- unlist(lapply(firmalar, function(f) c(paste0("toplam_gonderi_sayisi_", f), paste0("ortalama_teslim_suresi_", f))))
-      final_report <- final_report %>% select(`Satır Etiketleri` = bolge, all_of(firma_sutunlari_sirali), `Say Kargo No Toplamı` = toplam_gonderi, `Ortalama Toplam Teslim Süresi (Saat) Toplamı` = genel_ortalama_hiz, `EN İYİ TESLİMAT SÜRESİNE SAHİP FİRMA` = en_iyi_firma, `EN KÖTÜ TESLİMAT SÜRESİNE SAHİP FİRMA` = en_kotu_firma)
-      return(final_report)
-    }
-    
-    # --- TEMEL REAKTİF VERİLER ---
-    ana_veri <- reactive({ req(data()); data() })
-    ana_veri_skorlari <- reactive({ ana_veri()$sonuclar %>% filter(!kargo_turu %in% b2b_turleri) })
-    aykiri_veriler <- reactive({ ana_veri()$aykiri_degerler })
-    ham_veri_temiz <- reactive({ ana_veri()$ham_veri_temiz })
-    karsilastirma_verisi <- reactiveVal(NULL)
-    
-    # --- TEMEL REAKTİF VERİLER ---
-    ana_veri <- reactive({ req(data()); data() })
-    ana_veri_skorlari <- reactive({ ana_veri()$sonuclar %>% filter(!kargo_turu %in% b2b_turleri) })
-    aykiri_veriler <- reactive({ ana_veri()$aykiri_degerler })
-    ham_veri_temiz <- reactive({ ana_veri()$ham_veri_temiz })
-    karsilastirma_verisi <- reactiveVal(NULL)
-    
-    # ========================================================================
-    #       >>> YENİ EKLENEN BÖLÜM: İNDİRME BUTONU DURUM TAKİPÇİLERİ <<<
-    # ========================================================================
-    # Bu reaktif değerler, ilgili sekmedeki veri hesaplandığında TRUE olur.
-    # Varsayılan olarak FALSE (yani devre dışı) başlarlar.
-    can_download_ilce <- reactiveVal(FALSE)
-    can_download_karne <- reactiveVal(FALSE)
-    can_download_marka <- reactiveVal(FALSE)
-    can_download_sikayet <- reactiveVal(FALSE)
-    
-    # İlgili reaktif veri hesaplandığı anda bu takipçileri TRUE yap.
-    # `observe` kullanıyoruz çünkü bu işlemin bir çıktı üretmesi gerekmiyor.
-    observe({ req(ilce_karsilastirma_data()); can_download_ilce(TRUE) })
-    observe({ req(firma_karne_tablo_verisi()); can_download_karne(TRUE) })
-    observe({ req(marka_analizi_data()); can_download_marka(TRUE) })
-    observe({ req(sikayet_analizi_ozet_verisi()); can_download_sikayet(TRUE) })
-    # ========================================================================
-    
-    # --- UI RENDER FONKSİYONLARI ---
-    output$sehir_secimi_ui <- renderUI({ req(ana_veri_skorlari()); sehir_listesi <- sort(unique(ana_veri_skorlari()$sehir)); selectInput(ns("sehir_secimi_tab1"), "1. Şehir Seçin:", choices = sehir_listesi) })
-    output$ilce_secimi_ui <- renderUI({ req(input$sehir_secimi_tab1); ilce_secenekleri <- ana_veri_skorlari() %>% filter(sehir == input$sehir_secimi_tab1) %>% pull(ilce) %>% unique() %>% sort(); selectInput(ns("ilce_secimi_tab1"), "2. İlçe Seçin:", choices = c("Tüm İlçeler" = "all_districts", ilce_secenekleri)) })
-    output$firma_secimi_ui <- renderUI({ req(ana_veri_skorlari()); firma_listesi <- sort(unique(ana_veri_skorlari()$kargo_turu)); selectInput(ns("secilen_firma_karne"), "1. Firma Seçin:", choices = firma_listesi) })
-    output$firma_karne_sehir_ui <- renderUI({ req(ana_veri_skorlari()); sehir_listesi <- sort(unique(ana_veri_skorlari()$sehir)); selectInput(ns("karne_sehir_secimi"), "2. İl Seçerek Filtrele:", choices = c("Tüm Türkiye" = "all_cities", sehir_listesi)) })
-    output$marka_analizi_marka_filter_ui <- renderUI({ req(ham_veri_temiz()); marka_listesi <- ham_veri_temiz() %>% filter(!is.na(gonderici)) %>% pull(gonderici) %>% unique() %>% sort(); selectInput(ns("secilen_marka_analizi"), "Marka Seçin:", choices = marka_listesi) })
-    output$marka_analizi_il_filter_ui <- renderUI({ req(input$secilen_marka_analizi); il_listesi <- ham_veri_temiz() %>% filter(gonderici == input$secilen_marka_analizi, !is.na(sehir)) %>% pull(sehir) %>% unique() %>% sort(); selectInput(ns("marka_analizi_secilen_il"), "İl Seçin (Opsiyonel):", choices = c("Tüm Türkiye" = "all_cities", il_listesi)) })
-    output$marka_analizi_ilce_filter_ui <- renderUI({ req(input$marka_analizi_secilen_il); if (input$marka_analizi_secilen_il == "all_cities") { return(NULL) }; ilce_listesi <- ham_veri_temiz() %>% filter(gonderici == input$secilen_marka_analizi, sehir == input$marka_analizi_secilen_il, !is.na(ilce)) %>% pull(ilce) %>% unique() %>% sort(); selectInput(ns("marka_analizi_secilen_ilce"), "İlçe Seçin (Opsiyonel):", choices = c("Tüm İlçeler" = "all_districts", ilce_listesi)) })
-    output$sikayet_analizi_firma_filter_ui <- renderUI({ req(ana_veri_skorlari()); firma_listesi <- sort(unique(ana_veri_skorlari()$kargo_turu)); selectInput(ns("sikayet_firma_secimi"), "1. Firma Seçin:", choices = c("Tüm Firmalar" = "all_companies", firma_listesi)) })
-    output$sikayet_analizi_sehir_filter_ui <- renderUI({ req(ana_veri_skorlari()); sehir_listesi <- sort(unique(ana_veri_skorlari()$sehir)); selectInput(ns("sikayet_sehir_secimi"), "2. İl Seçin:", choices = c("Tüm Türkiye" = "all_cities", sehir_listesi)) })
-    output$firma_secim_ui_aykiri <- renderUI({ req(aykiri_veriler()); firma_listesi <- sort(unique(aykiri_veriler()$kargo_turu)); selectInput(ns("aykiri_secilen_firma"), "Firma Seçin:", choices = firma_listesi) })
-    output$il_secim_ui_aykiri <- renderUI({ req(aykiri_veriler()); il_listesi <- sort(unique(aykiri_veriler()$sehir)); selectInput(ns("aykiri_secilen_il"), "İl Seçin:", choices = il_listesi) })
-    output$ilce_secim_ui_aykiri <- renderUI({ req(aykiri_veriler(), input$aykiri_secilen_il); ilce_listesi <- aykiri_veriler() %>% filter(sehir == input$aykiri_secilen_il) %>% pull(ilce) %>% unique() %>% sort(); selectInput(ns("aykiri_secilen_ilce"), "İlçe Seçin (Opsiyonel):", choices = c("Tüm İlçeler" = "all", ilce_listesi)) })
-    
-    # --- REAKTİF HESAPLAMALAR ---
-    dinamik_skorlar <- reactive({ req(ana_veri_skorlari(), input$agirlik_performans, input$agirlik_hiz, input$agirlik_sikayet); toplam_agirlik <- input$agirlik_performans + input$agirlik_hiz + input$agirlik_sikayet; if (toplam_agirlik == 0) toplam_agirlik <- 1; agirlik_p <- input$agirlik_performans / toplam_agirlik; agirlik_h <- input$agirlik_hiz / toplam_agirlik; agirlik_s <- input$agirlik_sikayet / toplam_agirlik; ana_veri_skorlari() %>% mutate(Ham_EPS = (performans_puani * agirlik_p) + (hiz_puani * agirlik_h) + (musteri_deneyimi_puani * agirlik_s)) })
-    ilce_karsilastirma_data <- reactive({ req(input$sehir_secimi_tab1, input$ilce_secimi_tab1, dinamik_skorlar(), input$guvenilirlik_esigi, input$guven_esigi_v, input$taban_puan_c); base_data <- dinamik_skorlar() %>% filter(sehir == input$sehir_secimi_tab1); if (input$ilce_secimi_tab1 == "all_districts") { summary_data <- base_data %>% group_by(kargo_turu) %>% summarise(total_weight = sum(toplam_gonderi_sayisi, na.rm = TRUE), Ham_EPS_sum = sum(Ham_EPS * toplam_gonderi_sayisi, na.rm = TRUE), hiz_puani_sum = sum(hiz_puani * toplam_gonderi_sayisi, na.rm = TRUE), ortalama_desi_sum = sum(ortalama_desi * toplam_gonderi_sayisi, na.rm = TRUE), toplam_gonderi_sayisi = sum(toplam_gonderi_sayisi, na.rm = TRUE), toplam_sikayet_sayisi = sum(toplam_sikayet_sayisi, na.rm = TRUE)) %>% mutate(Ham_EPS = if_else(total_weight > 0, Ham_EPS_sum / total_weight, 0), hiz_puani = if_else(total_weight > 0, hiz_puani_sum / total_weight, 0), ortalama_desi = if_else(total_weight > 0, ortalama_desi_sum / total_weight, 0)) %>% ungroup() } else { summary_data <- base_data %>% filter(ilce == input$ilce_secimi_tab1) }; safe_sum_prod <- sum(summary_data$Ham_EPS * summary_data$toplam_gonderi_sayisi, na.rm = TRUE); safe_sum_weight <- sum(summary_data$toplam_gonderi_sayisi, na.rm = TRUE); context_average_C <- if(safe_sum_weight > 0) safe_sum_prod / safe_sum_weight else 0; m <- input$guvenilirlik_esigi; v_esik <- input$guven_esigi_v; c_taban <- input$taban_puan_c / 100; final_data <- summary_data %>% mutate(guvenilmez_mi = toplam_gonderi_sayisi < v_esik, Hedef_Puan_C = if_else(guvenilmez_mi, c_taban, context_average_C), Bayes_EPS = ((toplam_gonderi_sayisi / (toplam_gonderi_sayisi + m)) * Ham_EPS) + ((m / (toplam_gonderi_sayisi + m)) * Hedef_Puan_C), hacim_yuzdesi = (toplam_gonderi_sayisi / sum(toplam_gonderi_sayisi)) * 100, sikayet_orani_yuzde = if_else(toplam_gonderi_sayisi > 0, (toplam_sikayet_sayisi / toplam_gonderi_sayisi) * 100, 0), Bayes_Aciklama = paste0("Ham Skor: %", round(Ham_EPS * 100, 1), "\n", "Gonderi Sayisi: ", toplam_gonderi_sayisi, "\n", "Guven Esigi (v_esik): ", v_esik, "\n\n", if_else(guvenilmez_mi, paste0("Gonderi sayisi guven esiginin altinda oldugu icin 'Guvenilmez' kabul edildi.\nSkoru, Taban Puan olan %", round(c_taban * 100), "'a dogru cekildi."), paste0("Gonderi sayisi guven esigini gectigi icin 'Guvenilir' kabul edildi.\nSkoru, bolge ortalamasi olan %", round(context_average_C * 100), "'a dogru cekildi.")))); return(final_data) })
-    simulator_data <- reactive({ req(dinamik_skorlar(), input$guvenilirlik_esigi, input$guven_esigi_v, input$taban_puan_c); firma_ozeti <- dinamik_skorlar() %>% group_by(kargo_turu) %>% summarise(total_weight = sum(toplam_gonderi_sayisi, na.rm = TRUE), Ham_EPS_sum = sum(Ham_EPS * toplam_gonderi_sayisi, na.rm = TRUE), Toplam_Gonderi = sum(toplam_gonderi_sayisi, na.rm = TRUE)) %>% mutate(Ham_EPS_Ağırlıklı = if_else(total_weight > 0, Ham_EPS_sum / total_weight, 0)) %>% ungroup(); safe_sum_prod <- sum(firma_ozeti$Ham_EPS_Ağırlıklı * firma_ozeti$Toplam_Gonderi, na.rm = TRUE); safe_sum_weight <- sum(firma_ozeti$Toplam_Gonderi, na.rm = TRUE); global_ortalama_C <- if(safe_sum_weight > 0) safe_sum_prod / safe_sum_weight else 0; m <- input$guvenilirlik_esigi; v_esik <- input$guven_esigi_v; c_taban <- input$taban_puan_c / 100; firma_ozeti %>% mutate(guvenilmez_mi = Toplam_Gonderi < v_esik, Hedef_Puan_C = if_else(guvenilmez_mi, c_taban, global_ortalama_C), Bayes_EPS = ((Toplam_Gonderi / (Toplam_Gonderi + m)) * Ham_EPS_Ağırlıklı) + ((m / (Toplam_Gonderi + m)) * Hedef_Puan_C), Bayes_Aciklama = paste0("Ham Skor: %", round(Ham_EPS_Ağırlıklı * 100, 1), "\n", "Toplam Gonderi: ", Toplam_Gonderi, "\n", "Guven Esigi (v_esik): ", v_esik, "\n\n", if_else(guvenilmez_mi, paste0("Gonderi sayisi guven esiginin altinda oldugu icin 'Guvenilmez' kabul edildi.\nSkoru, Taban Puan olan %", round(c_taban * 100), "'a dogru cekildi."), paste0("Gonderi sayisi guven esigini gectigi icin 'Guvenilir' kabul edildi.\nSkoru, genel ortalama olan %", round(global_ortalama_C * 100), "'a dogru cekildi.")))) })
-    firma_karne_filtrelenmis_veri <- reactive({ req(ham_veri_temiz(), input$secilen_firma_karne, input$karne_sehir_secimi); df <- ham_veri_temiz() %>% filter(kargo_turu == input$secilen_firma_karne); if (input$karne_sehir_secimi != "all_cities") { df <- df %>% filter(sehir == input$karne_sehir_secimi) }; df %>% group_by(ilce, sehir, kargo_turu) %>% summarise(toplam_gonderi_sayisi = n(), dinamik_basari_orani = mean(basari_flag, na.rm = TRUE), ortalama_teslim_suresi = mean(toplam_teslim_suresi_saat, na.rm = TRUE), sikayet_orani_yuzde = mean(sikayet_var_mi, na.rm = TRUE) * 100, toplam_sikayet_sayisi = sum(sikayet_var_mi, na.rm = TRUE), .groups = 'drop') %>% mutate(performans_puani = safe_rescale(dinamik_basari_orani), hiz_puani = 1 - safe_rescale(ortalama_teslim_suresi), musteri_deneyimi_puani = 1 - safe_rescale(sikayet_orani_yuzde)) %>% mutate(across(ends_with("_puani"), ~if_else(is.na(.) | is.infinite(.), 0, .))) %>% mutate(Ham_EPS = { toplam_agirlik <- input$agirlik_performans + input$agirlik_hiz + input$agirlik_sikayet; if (toplam_agirlik == 0) toplam_agirlik <- 1; agirlik_p <- input$agirlik_performans / toplam_agirlik; agirlik_h <- input$agirlik_hiz / toplam_agirlik; agirlik_s <- input$agirlik_sikayet / toplam_agirlik; (performans_puani * agirlik_p) + (hiz_puani * agirlik_h) + (musteri_deneyimi_puani * agirlik_s) }) })
-    sikayet_analizi_ozet_verisi <- reactive({ req(ana_veri_skorlari(), input$sikayet_firma_secimi, input$sikayet_sehir_secimi); df <- ana_veri_skorlari(); if (input$sikayet_firma_secimi != "all_companies") { df <- df %>% filter(kargo_turu == input$sikayet_firma_secimi) }; if (input$sikayet_sehir_secimi != "all_cities") { df <- df %>% filter(sehir == input$sikayet_sehir_secimi) }; grouping_key <- if (input$sikayet_firma_secimi == "all_companies") vars(kargo_turu) else vars(sehir, ilce); df %>% filter(toplam_sikayet_sayisi > 0) %>% group_by(!!!grouping_key) %>% summarise(toplam_sikayet_sayisi = sum(toplam_sikayet_sayisi, na.rm = TRUE), toplam_gonderi_sayisi = sum(toplam_gonderi_sayisi, na.rm = TRUE), .groups = 'drop') %>% mutate(sikayet_orani_yuzde = (toplam_sikayet_sayisi / toplam_gonderi_sayisi) * 100) %>% arrange(desc(toplam_sikayet_sayisi)) })
-    aykiri_grafik_verisi <- reactive({ req(aykiri_veriler(), input$aykiri_analiz_modu); df <- aykiri_veriler(); if (input$aykiri_analiz_modu == "genel") { df %>% count(cikarilma_nedeni, name = "sayi") %>% rename(kategori = cikarilma_nedeni) } else if (input$aykiri_analiz_modu == "firma") { req(input$aykiri_secilen_firma); df %>% filter(kargo_turu == input$aykiri_secilen_firma) %>% mutate(bolge = paste(sehir, ilce, sep=" - ")) %>% count(bolge, name = "sayi") %>% arrange(desc(sayi)) %>% head(10) %>% rename(kategori = bolge) } else if (input$aykiri_analiz_modu == "bolge") { req(input$aykiri_secilen_il); df_filtered <- df %>% filter(sehir == input$aykiri_secilen_il); if (!is.null(input$aykiri_secilen_ilce) && input$aykiri_secilen_ilce != "all") { df_filtered <- df_filtered %>% filter(ilce == input$aykiri_secilen_ilce) }; df_filtered %>% count(kargo_turu, name = "sayi") %>% rename(kategori = kargo_turu) } })
-    aykiri_firma_ozet_verisi <- reactive({ req(aykiri_veriler()); df_summary <- aykiri_veriler() %>% count(kargo_turu, cikarilma_nedeni) %>% pivot_wider(names_from = cikarilma_nedeni, values_from = n, values_fill = 0); olasi_nedenler <- c("Aşırı Yüksek Teslimat Süresi", "Aşırı Düşük Teslimat Süresi", "Geçersiz Süre (0 Saat)"); for(neden in olasi_nedenler) { if (!neden %in% names(df_summary)) { df_summary[[neden]] <- 0 } }; df_summary %>% mutate(Toplam = `Aşırı Yüksek Teslimat Süresi` + `Aşırı Düşük Teslimat Süresi` + `Geçersiz Süre (0 Saat)`) %>% rename(`Kargo Firması` = kargo_turu, `Aşırı Yüksek Süre` = `Aşırı Yüksek Teslimat Süresi`, `Aşırı Düşük Süre` = `Aşırı Düşük Teslimat Süresi`, `Geçersiz Süre (0 Saat)` = `Geçersiz Süre (0 Saat)`) %>% select(`Kargo Firması`, `Aşırı Yüksek Süre`, `Aşırı Düşük Süre`, `Geçersiz Süre (0 Saat)`, `Toplam`) %>% arrange(desc(Toplam)) })
-    marka_analizi_data <- reactive({ req(ham_veri_temiz(), input$secilen_marka_analizi, input$marka_analizi_secilen_il, input$agirlik_performans, input$agirlik_hiz, input$agirlik_sikayet, input$guvenilirlik_esigi_marka, input$guven_esigi_v_marka, input$taban_puan_c_marka); df_marka <- ham_veri_temiz() %>% filter(gonderici == input$secilen_marka_analizi); if (input$marka_analizi_secilen_il != "all_cities") { df_marka <- df_marka %>% filter(sehir == input$marka_analizi_secilen_il); if (!is.null(input$marka_analizi_secilen_ilce) && input$marka_analizi_secilen_ilce != "all_districts") { df_marka <- df_marka %>% filter(ilce == input$marka_analizi_secilen_ilce) } }; if(nrow(df_marka) == 0) return(NULL); df_summary <- df_marka %>% group_by(kargo_turu) %>% summarise(toplam_gonderi_sayisi = n(), ortalama_teslim_suresi = mean(toplam_teslim_suresi_saat, na.rm = TRUE), dinamik_basari_orani = mean(basari_flag, na.rm = TRUE), toplam_sikayet_sayisi = sum(sikayet_var_mi, na.rm = TRUE), .groups = 'drop') %>% mutate(sikayet_orani_yuzde = if_else(toplam_gonderi_sayisi > 0, (toplam_sikayet_sayisi / toplam_gonderi_sayisi) * 100, 0)); df_scored <- df_summary %>% mutate(performans_puani = safe_rescale(dinamik_basari_orani), hiz_puani = 1 - safe_rescale(ortalama_teslim_suresi), musteri_deneyimi_puani = 1 - safe_rescale(sikayet_orani_yuzde)) %>% mutate(across(ends_with("_puani"), ~if_else(is.na(.) | is.infinite(.), 0, .))); toplam_agirlik <- input$agirlik_performans + input$agirlik_hiz + input$agirlik_sikayet; if (toplam_agirlik == 0) toplam_agirlik <- 1; agirlik_p <- input$agirlik_performans / toplam_agirlik; agirlik_h <- input$agirlik_hiz / toplam_agirlik; agirlik_s <- input$agirlik_sikayet / toplam_agirlik; df_ham_skor <- df_scored %>% mutate(Ham_EPS = (performans_puani * agirlik_p) + (hiz_puani * agirlik_h) + (musteri_deneyimi_puani * agirlik_s)); m <- input$guvenilirlik_esigi_marka; v_esik <- input$guven_esigi_v_marka; c_taban <- input$taban_puan_c_marka / 100; safe_sum_prod <- sum(df_ham_skor$Ham_EPS * df_ham_skor$toplam_gonderi_sayisi, na.rm = TRUE); safe_sum_weight <- sum(df_ham_skor$toplam_gonderi_sayisi, na.rm = TRUE); context_average_C <- if(safe_sum_weight > 0) safe_sum_prod / safe_sum_weight else 0; df_final <- df_ham_skor %>% mutate(guvenilmez_mi = toplam_gonderi_sayisi < v_esik, Hedef_Puan_C = if_else(guvenilmez_mi, c_taban, context_average_C), Bayes_EPS = ((toplam_gonderi_sayisi / (toplam_gonderi_sayisi + m)) * Ham_EPS) + ((m / (toplam_gonderi_sayisi + m)) * Hedef_Puan_C), Bayes_Aciklama = paste0("Ham Skor: %", round(Ham_EPS * 100, 1), "\n", "Toplam Gonderi: ", toplam_gonderi_sayisi, "\n", "Guven Esigi (v_esik): ", v_esik, "\n\n", if_else(guvenilmez_mi, paste0("Gonderi sayisi guven esiginin altinda oldugu icin 'Guvenilmez' kabul edildi.\nSkoru, Taban Puan olan %", round(c_taban * 100), "'a dogru cekildi."), paste0("Gonderi sayisi guven esigini gectigi icin 'Guvenilir' kabul edildi.\nSkoru, bu filtrelenmis bağlamın ortalaması olan %", round(context_average_C * 100), "'a dogru cekildi.")))) %>% arrange(desc(Bayes_EPS)); return(df_final) })
-    firma_karne_tablo_verisi <- reactive({ req(firma_karne_filtrelenmis_veri(), input$min_hacim_karne); firma_karne_filtrelenmis_veri() %>% filter(toplam_gonderi_sayisi >= input$min_hacim_karne) %>% mutate( ortalama_teslim_suresi = round(ortalama_teslim_suresi, 2), sikayet_orani_gosterim = paste0(round(sikayet_orani_yuzde, 1), "% (", toplam_sikayet_sayisi, " adet)") ) %>% arrange(desc(Ham_EPS)) })
-    generate_all_brands_on_demand <- function(veri_cercevesi) { req(veri_cercevesi, input$agirlik_performans, input$agirlik_hiz, input$agirlik_sikayet, input$guvenilirlik_esigi, input$guven_esigi_v, input$taban_puan_c); toplam_agirlik <- input$agirlik_performans + input$agirlik_hiz + input$agirlik_sikayet; if (toplam_agirlik == 0) toplam_agirlik <- 1; agirlik_p_val <- input$agirlik_performans / toplam_agirlik; agirlik_h_val <- input$agirlik_hiz / toplam_agirlik; agirlik_s_val <- input$agirlik_sikayet / toplam_agirlik; m_param_val <- input$guvenilirlik_esigi; v_esik_param_val <- input$guven_esigi_v; c_taban_param_val <- input$taban_puan_c / 100; df_summary <- veri_cercevesi %>% filter(!is.na(gonderici) & !is.na(sehir) & !is.na(ilce)) %>% group_by(gonderici, kargo_turu, sehir, ilce) %>% summarise(toplam_gonderi_sayisi = n(), ortalama_teslim_suresi = mean(toplam_teslim_suresi_saat, na.rm = TRUE), dinamik_basari_orani = mean(basari_flag, na.rm = TRUE), toplam_sikayet_sayisi = sum(sikayet_var_mi, na.rm = TRUE), .groups = 'drop') %>% mutate(sikayet_orani_yuzde = if_else(toplam_gonderi_sayisi > 0, (toplam_sikayet_sayisi / toplam_gonderi_sayisi) * 100, 0)); if (nrow(df_summary) == 0) return(NULL); df_final <- df_summary %>% group_by(gonderici) %>% mutate(performans_puani = safe_rescale(dinamik_basari_orani), hiz_puani = 1 - safe_rescale(ortalama_teslim_suresi), musteri_deneyimi_puani = 1 - safe_rescale(sikayet_orani_yuzde), across(ends_with("_puani"), ~if_else(is.na(.) | is.infinite(.), 0, .)), Ham_EPS = (performans_puani * agirlik_p_val) + (hiz_puani * agirlik_h_val) + (musteri_deneyimi_puani * agirlik_s_val)) %>% mutate(context_average_C = weighted.mean(Ham_EPS, toplam_gonderi_sayisi, na.rm = TRUE), guvenilmez_mi = toplam_gonderi_sayisi < v_esik_param_val, Hedef_Puan_C = if_else(guvenilmez_mi, c_taban_param_val, context_average_C), Bayes_EPS = ((toplam_gonderi_sayisi / (toplam_gonderi_sayisi + m_param_val)) * Ham_EPS) + ((m_param_val / (toplam_gonderi_sayisi + m_param_val)) * Hedef_Puan_C)) %>% ungroup() %>% arrange(gonderici, sehir, ilce, desc(Bayes_EPS)); return(df_final) }
-    can_generate_brand_report <- reactive({ req(ham_veri_temiz()); any(!is.na(ham_veri_temiz()$gonderici)) })
-    
-    # --- OUTPUTS VE OBSERVERS ---
-    output$simulator_total_count_ui <- renderUI({ df <- simulator_data(); req(df); total_count <- sum(df$Toplam_Gonderi, na.rm = TRUE); tags$div(style = "text-align: right;", h5("Toplam Gönderi:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"), h4(format(total_count, big.mark = ","), style = "margin: 0; font-weight: bold;")) })
-    output$ilce_karsilastirma_total_count_ui <- renderUI({ df <- ilce_karsilastirma_data(); req(df); total_count <- sum(df$toplam_gonderi_sayisi, na.rm = TRUE); tags$div(style = "text-align: right;", h5("Bölgedeki Toplam Gönderi:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"), h4(format(total_count, big.mark = ","), style = "margin: 0; font-weight: bold;")) })
-    output$firma_karne_total_count_ui <- renderUI({ df <- firma_karne_filtrelenmis_veri(); req(df); total_count <- sum(df$toplam_gonderi_sayisi, na.rm = TRUE); if (total_count == 0) return(NULL); tags$div(style = "text-align: right;", h5("Filtrelenen Gönderi:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"), h4(format(total_count, big.mark = ","), style = "margin: 0; font-weight: bold;")) })
-    output$marka_analizi_total_count_ui <- renderUI({ df <- marka_analizi_data(); req(df); total_count <- sum(df$toplam_gonderi_sayisi, na.rm = TRUE); if (total_count == 0) return(NULL); tags$div(style = "text-align: right;", h5("Markanın Toplam Gönderi:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"), h4(format(total_count, big.mark = ","), style = "margin: 0; font-weight: bold;")) })
-    output$sikayet_analizi_total_count_ui <- renderUI({ df <- sikayet_analizi_ozet_verisi(); req(df); total_count <- sum(df$toplam_gonderi_sayisi, na.rm = TRUE); if (total_count == 0) return(NULL); tags$div(style = "text-align: right;", h5("Filtrelenen Gönderi:", style = "margin: 0; color: #7f8c8d; font-weight: normal;"), h4(format(total_count, big.mark = ","), style = "margin: 0; font-weight: bold;")) })
-    output$agirlik_toplami <- renderText({ paste0(input$agirlik_performans + input$agirlik_hiz + input$agirlik_sikayet, " %") })
-    output$simulator_tablosu <- DT::renderDataTable({ req(simulator_data()); df_for_display <- simulator_data() %>% arrange(desc(Bayes_EPS)) %>% mutate(Bayes_EPS_display = paste0('<span title="', Bayes_Aciklama, '">', scales::percent(Bayes_EPS, accuracy = 0.01), '</span>')) %>% select( "Kargo Firması" = kargo_turu, "Ham Skor (EPS)" = Ham_EPS_Ağırlıklı, "Hacim Ayarlı Skor" = Bayes_EPS_display, "Toplam Gönderi Sayısı" = Toplam_Gonderi ); DT::datatable(df_for_display, escape = FALSE, rownames = FALSE, options = list(pageLength = 15, searching = FALSE)) %>% formatPercentage('Ham Skor (EPS)', digits = 2) })
-    output$oneri_basligi <- renderText({ req(input$sehir_secimi_tab1, input$ilce_secimi_tab1); bolge <- if(input$ilce_secimi_tab1 == "all_districts") paste(toupper(input$sehir_secimi_tab1), "ŞEHRİ GENELİ") else paste(input$ilce_secimi_tab1, " (",toupper(input$sehir_secimi_tab1),") İlçesi"); paste(bolge, "İçin Anlık Öneriler") })
-    output$detay_tablo_basligi <- renderText({ req(input$sehir_secimi_tab1, input$ilce_secimi_tab1); bolge <- if(input$ilce_secimi_tab1 == "all_districts") paste(toupper(input$sehir_secimi_tab1), "ŞEHRİ GENELİ") else paste(input$ilce_secimi_tab1, " (",toupper(input$sehir_secimi_tab1),") İlçesi"); paste(bolge, "Anlık Karne") })
-    output$optimal_firma <- renderText({ df <- ilce_karsilastirma_data(); if (nrow(df) == 0) "Veri Yok" else df %>% arrange(desc(Bayes_EPS)) %>% slice(1) %>% pull(kargo_turu) })
-    output$hizli_firma <- renderText({ df <- ilce_karsilastirma_data(); if (nrow(df) == 0) "Veri Yok" else df %>% arrange(desc(hiz_puani)) %>% slice(1) %>% pull(kargo_turu) })
-    output$guvenilir_firma <- renderText({ df <- ilce_karsilastirma_data(); if (nrow(df) == 0) "Veri Yok" else df %>% arrange(sikayet_orani_yuzde) %>% slice(1) %>% pull(kargo_turu) })
-    output$detay_tablosu <- DT::renderDataTable({
-      req(ilce_karsilastirma_data())
-      df_for_display <- ilce_karsilastirma_data() %>%
-        mutate(
-          sikayet_orani_gosterim = paste0(toplam_sikayet_sayisi, " adet (%", round(sikayet_orani_yuzde, 1), ")"),
-          ortalama_desi_gosterim = as.character(round(ortalama_desi, 2)),
-          gonderi_sayisi_gosterim = paste0(toplam_gonderi_sayisi, " (%", round(hacim_yuzdesi, 0), ")"),
-          Bayes_EPS_display = paste0('<span title="', Bayes_Aciklama, '">', scales::percent(Bayes_EPS, accuracy = 0.01), '</span>'),
-          
-          # <<< YENİ VE KRİTİK DEĞİŞİKLİK BURADA >>>
-          # Ham Skor'u da en başından metne (string) çeviriyoruz.
-          # Yüzde formatını manuel olarak ekleyerek `formatPercentage` ihtiyacını ortadan kaldırıyoruz.
-          Ham_Skor_Gosterim = paste0(round(Ham_EPS * 100, 2), "%")
-        ) %>%
-        arrange(desc(Bayes_EPS))
-      
-      df_for_display %>%
-        # Sütun sırasını isteğinize göre koruyoruz.
-        select(
-          `Kargo Firması` = kargo_turu,
-          `Hacim Ayarlı Skor` = Bayes_EPS_display,
-          `Ham Skor` = Ham_Skor_Gosterim, # Artık metin formatındaki yeni sütunu kullanıyoruz.
-          `Şikayet Oranı` = sikayet_orani_gosterim,
-          `Ortalama Desi` = ortalama_desi_gosterim,
-          `Gönderi Sayısı (% Hacim)` = gonderi_sayisi_gosterim
-        ) %>%
-        # `formatPercentage` fonksiyonunu tamamen kaldırıyoruz, çünkü formatlamayı yukarıda yaptık.
-        DT::datatable(escape = FALSE, rownames = FALSE, selection = 'single', options = list(pageLength = 10, searching = FALSE, scrollX = TRUE)) })
-    observeEvent(list(input$secilen_firma_karne, input$karne_sehir_secimi), { req(input$secilen_firma_karne); shinyjs::hide("content_karne_grafik"); shinyjs::hide("content_karne_tablo"); shinyjs::hide("panel_karne_veri_yok"); shinyjs::show("placeholder_karne_grafik"); shinyjs::show("placeholder_karne_tablo") }, ignoreInit = TRUE, ignoreNULL = TRUE)
-    observe({ req(firma_karne_filtrelenmis_veri()); data_for_plot <- firma_karne_filtrelenmis_veri() %>% filter(toplam_gonderi_sayisi >= (input$min_hacim_karne %||% 0)); if (nrow(data_for_plot) > 0) { shinyjs::hide("placeholder_karne_grafik", anim = TRUE, animType = "fade"); shinyjs::show("content_karne_grafik", anim = TRUE, animType = "fade"); shinyjs::hide("placeholder_karne_tablo", anim = TRUE, animType = "fade"); shinyjs::show("content_karne_tablo", anim = TRUE, animType = "fade"); shinyjs::hide("panel_karne_veri_yok") } else { shinyjs::hide("placeholder_karne_grafik"); shinyjs::hide("placeholder_karne_tablo"); shinyjs::hide("content_karne_grafik"); shinyjs::hide("content_karne_tablo"); shinyjs::show("panel_karne_veri_yok", anim = TRUE, animType = "fade") } })
-    output$firma_karne_basligi <- renderText({ req(input$secilen_firma_karne); paste(input$secilen_firma_karne, "Firmasının Anlık Bölgesel Performans Karnesi") })
-    output$firma_karne_grafigi <- renderPlot({ req(firma_karne_filtrelenmis_veri(), input$karne_siralama_tipi, input$min_hacim_karne); df_processed <- firma_karne_filtrelenmis_veri() %>% filter(toplam_gonderi_sayisi >= input$min_hacim_karne) %>% mutate(il_ilce = str_to_upper(paste0(sehir, " - ", ilce), "tr")); n_rows_to_show <- min(15, nrow(df_processed)); if(n_rows_to_show == 0) { return(ggplot() + theme_void()) }; if (isTRUE(theme_reactive() == "dark")) { plot_theme <- theme_minimal(base_size = 14) + theme(panel.background = element_rect(fill = "#343A40", color = NA), plot.background = element_rect(fill = "#343A40", color = NA), panel.grid.major.y = element_blank(), panel.grid.major.x = element_line(color = "#495057"), panel.grid.minor = element_blank(), text = element_text(color = "#E9ECEF"), axis.text = element_text(color = "#E9ECEF"), title = element_text(color = "#FFFFFF")) } else { plot_theme <- theme_minimal(base_size = 14) }; if(input$karne_siralama_tipi == "iyi") { df_plot <- df_processed %>% arrange(desc(Ham_EPS)) %>% head(n_rows_to_show); plot_aes <- aes(x = reorder(il_ilce, Ham_EPS), y = Ham_EPS, fill = Ham_EPS); plot_title <- paste("Anlık Ağırlıklara Göre En İyi Performanslar (Min.", input$min_hacim_karne, "Gönderi)"); plot_fill_scale <- scale_fill_gradient(low = "#a7d8a5", high = "#2a6f28") } else { df_plot <- df_processed %>% arrange(Ham_EPS) %>% head(n_rows_to_show); plot_aes <- aes(x = reorder(il_ilce, -Ham_EPS), y = Ham_EPS, fill = Ham_EPS); plot_title <- paste("Anlık Ağırlıklara Göre En Kötü Performanslar (Min.", input$min_hacim_karne, "Gönderi)"); plot_fill_scale <- scale_fill_gradient(low = "#f8d7da", high = "#d9534f") }; ggplot(df_plot, plot_aes) + geom_col(show.legend = FALSE) + coord_flip() + labs(title = plot_title, x = "Bölge (İl - İlçe)", y = "Genel Skor (EPS)") + plot_fill_scale + plot_theme + scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 1)) }, bg = "transparent")
-    output$firma_karne_tablosu <- DT::renderDataTable({
-      req(firma_karne_tablo_verisi())
-      df <- firma_karne_tablo_verisi()
-      
-      df %>%
-        # <<< YENİ MUTATE BLOĞU: Tüm sütunları formatlayıp sola yaslamak için metne çeviriyoruz >>>
-        mutate(
-          # Yüzdeleri manuel olarak formatlayıp sonuna "%" ekleyerek metne çeviriyoruz.
-          Genel_Skor_Gosterim = paste0(round(Ham_EPS * 100, 1), "%"),
-          Basari_Orani_Gosterim = paste0(round(dinamik_basari_orani * 100, 1), "%"),
-          
-          # Diğer sayısal sütunları da as.character() ile metne çeviriyoruz.
-          Ort_Teslim_Suresi_Gosterim = as.character(round(ortalama_teslim_suresi, 2)),
-          Gonderi_Sayisi_Gosterim = as.character(toplam_gonderi_sayisi)
-        ) %>%
-        # Artık formatlanmış ve metne çevrilmiş yeni "_Gosterim" sütunlarını seçiyoruz.
-        select(
-          `İlçe` = ilce,
-          `Şehir` = sehir,
-          `Genel Skor (EPS)` = Genel_Skor_Gosterim,
-          `Başarı Oranı` = Basari_Orani_Gosterim,
-          `Şikayet Oranı` = sikayet_orani_gosterim, # Bu zaten metin formatındaydı
-          `Ort. Teslim Süresi (Saat)` = Ort_Teslim_Suresi_Gosterim,
-          `Gönderi Sayısı` = Gonderi_Sayisi_Gosterim
-        ) %>%
-        # `formatPercentage` fonksiyonunu kaldırıyoruz çünkü formatlamayı yukarıda kendimiz yaptık.
-        DT::datatable(
-          rownames = FALSE,
-          selection = 'single',
-          options = list(pageLength = 10, searching = TRUE, scrollX = TRUE)
-        ) })
-    output$marka_analizi_baslik <- renderText({ req(input$secilen_marka_analizi); paste(input$secilen_marka_analizi, "Markasının Kargo Firması Performans Raporu") })
-    output$marka_analizi_tablosu <- DT::renderDataTable({
-      df <- marka_analizi_data()
-      req(df)
-      
-      df_for_display <- df %>%
-        # <<< YENİ MUTATE BLOĞU: Tüm sütunları formatlayıp sola yaslamak için metne çeviriyoruz >>>
-        mutate(
-          # HTML içeren bu sütun zaten sola yaslı
-          Bayes_EPS_display = paste0('<span title="', Bayes_Aciklama, '">', scales::percent(Bayes_EPS, accuracy = 0.01), '</span>'),
-          
-          # Şikayet oranı formatını isteğinize göre güncelleyip metin olarak tutuyoruz
-          sikayet_orani_gosterim = paste0(toplam_sikayet_sayisi, " adet (%", round(sikayet_orani_yuzde, 1), ")"),
-          
-          # Yüzdeleri manuel olarak formatlayıp sonuna "%" ekleyerek metne çeviriyoruz.
-          Ham_Skor_Gosterim = paste0(round(Ham_EPS * 100, 2), "%"),
-          Basari_Orani_Gosterim = paste0(round(dinamik_basari_orani * 100, 2), "%"),
-          
-          # Diğer sayısal sütunları da as.character() ile metne çeviriyoruz.
-          Ort_Teslim_Suresi_Gosterim = as.character(round(ortalama_teslim_suresi, 2)),
-          Toplam_Gonderi_Gosterim = as.character(toplam_gonderi_sayisi)
-        ) %>%
-        # Artık formatlanmış ve metne çevrilmiş yeni "_Gosterim" sütunlarını seçiyoruz.
-        select(
-          `Kargo Firması` = kargo_turu,
-          `Hacim Ayarlı Skor` = Bayes_EPS_display,
-          `Ham Skor` = Ham_Skor_Gosterim,
-          `Ort. Teslim Süresi (Saat)` = Ort_Teslim_Suresi_Gosterim,
-          `Başarı Oranı` = Basari_Orani_Gosterim,
-          `Şikayet Oranı` = sikayet_orani_gosterim,
-          `Toplam Gönderi` = Toplam_Gonderi_Gosterim
-        )
-      
-      # `formatPercentage` ve `formatRound` fonksiyonlarını kaldırıyoruz.
-      DT::datatable(
-        df_for_display,
-        escape = FALSE,
-        rownames = FALSE,
-        selection = 'single',
-        options = list(pageLength = 10, searching = TRUE, scrollX = TRUE)
-      )  }) 
-    output$show_sikayet_panel <- reactive({ req(sikayet_analizi_ozet_verisi()); return(nrow(sikayet_analizi_ozet_verisi()) > 0) }); outputOptions(output, 'show_sikayet_panel', suspendWhenHidden = FALSE)
-    output$sikayet_analizi_baslik <- renderText({ req(input$sikayet_firma_secimi, input$sikayet_sehir_secimi); firma_adi <- if(input$sikayet_firma_secimi == "all_companies") "Tüm Firmalar" else input$sikayet_firma_secimi; bolge_adi <- if(input$sikayet_sehir_secimi == "all_cities") "Tüm Türkiye" else str_to_upper(input$sikayet_sehir_secimi, "tr"); paste(firma_adi, "için", bolge_adi, "Bölgesindeki Şikayet Dağılımı") })
-    output$sikayet_analizi_grafigi <- renderPlot({ df_summary <- sikayet_analizi_ozet_verisi(); req(nrow(df_summary) > 0); df_plot <- df_summary %>% head(15); if (isTRUE(theme_reactive() == "dark")) { plot_theme <- theme_minimal(base_size = 14) + theme(panel.background = element_rect(fill = "#343A40", color = NA), plot.background = element_rect(fill = "#343A40", color = NA), panel.grid.major.y = element_blank(), panel.grid.minor.x = element_blank(), panel.grid.major.x = element_line(linetype = "dashed", color = "#495057"), text = element_text(color = "#E9ECEF"), axis.text = element_text(color = "#E9ECEF"), title = element_text(color = "#FFFFFF")) } else { plot_theme <- theme_minimal(base_size = 14) + theme(panel.grid.major.y = element_blank(), panel.grid.minor.x = element_blank(), panel.grid.major.x = element_line(linetype = "dashed", color = "gray")) }; if(input$sikayet_firma_secimi == "all_companies") { plot_aes <- aes(x = reorder(kargo_turu, toplam_sikayet_sayisi), y = toplam_sikayet_sayisi); x_label <- "Kargo Firması"; plot_title <- "Firmalara Göre En Çok Şikayet Alınanlar" } else { df_plot <- df_plot %>% mutate(il_ilce = str_to_upper(paste0(sehir, " - ", ilce), "tr")); plot_aes <- aes(x = reorder(il_ilce, toplam_sikayet_sayisi), y = toplam_sikayet_sayisi); x_label <- "Bölge (İl - İlçe)"; plot_title <- "Bölgelere Göre En Çok Şikayet Alınanlar" }; ggplot(df_plot, plot_aes) + geom_col(fill = "#d9534f") + geom_text(aes(label = toplam_sikayet_sayisi), hjust = -0.2, size = 4, color = if(isTRUE(theme_reactive() == "dark")) "white" else "black") + coord_flip() + labs(title = plot_title, x = x_label, y = "Toplam Şikayet Sayısı") + plot_theme }, bg = "transparent")
-    output$sikayet_analizi_tablosu <- DT::renderDataTable({ df_summary <- sikayet_analizi_ozet_verisi(); req(nrow(df_summary) > 0); if(input$sikayet_firma_secimi == "all_companies") { df_table <- df_summary %>% select(`Kargo Firması` = kargo_turu, `Toplam Şikayet Sayısı` = toplam_sikayet_sayisi, `Toplam Gönderi Sayısı` = toplam_gonderi_sayisi, `Şikayet Oranı (%)` = sikayet_orani_yuzde) } else { df_table <- df_summary %>% select(`Şehir` = sehir, `İlçe` = ilce, `Toplam Şikayet Sayısı` = toplam_sikayet_sayisi, `Toplam Gönderi Sayısı` = toplam_gonderi_sayisi, `Şikayet Oranı (%)` = sikayet_orani_yuzde) }; DT::datatable(df_table, rownames = FALSE, selection = 'single', options = list(pageLength = 10, searching = TRUE, scrollX = TRUE)) %>% formatRound('Şikayet Oranı (%)', digits = 2) })
-    output$aykiri_pie_chart <- renderPlot({ req(input$aykiri_analiz_modu != "firma_ozet"); plot_data <- aykiri_grafik_verisi(); req(plot_data, nrow(plot_data) > 0); plot_data <- plot_data %>% mutate(yuzde = sayi / sum(sayi)); grafik_basligi <- case_when(input$aykiri_analiz_modu == "genel" ~ "Tüm Firmalar İçin Aykırılık Nedenleri Dağılımı", input$aykiri_analiz_modu == "firma" ~ paste(input$aykiri_secilen_firma, "için En Çok Aykırılık Gözlemlenen Bölgeler"), input$aykiri_analiz_modu == "bolge" ~ { bolge_adi <- if(!is.null(input$aykiri_secilen_ilce) && input$aykiri_secilen_ilce != "all") { paste(input$aykiri_secilen_il, "-", input$aykiri_secilen_ilce) } else { input$aykiri_secilen_il }; paste(bolge_adi, "Bölgesindeki Aykırı Değerlerin Firmalara Göre Dağılımı") }); if (isTRUE(theme_reactive() == "dark")) { plot_theme <- theme_void(base_size = 16) + theme(plot.title = element_text(hjust = 0.5, face = "bold", color = "white"), legend.title = element_text(face = "bold", color="white"), legend.text = element_text(color="white")); bar_border_color <- "#212529" } else { plot_theme <- theme_void(base_size = 16) + theme(plot.title = element_text(hjust = 0.5, face = "bold"), legend.title = element_text(face = "bold")); bar_border_color <- "white" }; ggplot(plot_data, aes(x = "", y = yuzde, fill = fct_reorder(kategori, yuzde))) + geom_bar(stat = "identity", width = 1, color = bar_border_color) + geom_text(aes(label = paste0(round(yuzde * 100), "%\n(", sayi, " adet)")), position = position_stack(vjust = 0.5), color = "white", size = 5, fontface = "bold") + labs(title = grafik_basligi, fill = "Kategori") + plot_theme }, bg = "transparent")
-    output$firma_ozet_basligi <- renderText({ req(aykiri_firma_ozet_verisi()); toplam_aykiri <- sum(aykiri_firma_ozet_verisi()$Toplam); paste0("Firma Bazında Aykırı Değer Özeti (Toplam: ", format(toplam_aykiri, big.mark=","), " Adet)") })
-    output$aykiri_firma_ozet_tablosu <- DT::renderDataTable({ DT::datatable(aykiri_firma_ozet_verisi(), rownames = FALSE, options = list(searching = FALSE, paging = FALSE, info = FALSE, columnDefs = list(list(className = 'dt-center', targets = '_all')))) })
-    output$aykiri_degerler_tablosu <- DT::renderDataTable({ df <- aykiri_veriler(); req(df); DT::datatable(df, colnames = c("Şehir", "İlçe", "Kargo Firması", "Teslim Süresi (Saat)", "Tahmini Süre (Saat)", "Çıkarılma Nedeni", "Kargo No"), options = list(pageLength = 15, scrollX = TRUE, search = list(regex = TRUE, caseInsensitive = TRUE)), filter = 'top') })
-    observeEvent(input$karsilastir_button,{ req(input$ana_donem_secimi, input$karsilastirma_donem_secimi); original_html <- "VERİLERİ KARŞILAŞTIR"; shinyjs::html("karsilastir_button", "Hesaplanıyor..."); shinyjs::disable("karsilastir_button"); shinyjs::addClass("karsilastir_button", "btn-loading"); on.exit({ shinyjs::html("karsilastir_button", original_html); shinyjs::removeClass("karsilastir_button", "btn-loading"); shinyjs::enable("karsilastir_button") });
-    get_summary_for_period<-function(start_date,end_date){
-      period_data_list<-analiz_et_ve_skorla_b2c(db_pool=db_pool_static,start_date=start_date,end_date=end_date,progress_updater=NULL); if(is.null(period_data_list)){return(NULL)}; summary<-period_data_list$ham_veri_temiz%>%filter(!kargo_turu%in%b2b_turleri,!is.na(kargo_turu))%>%group_by(`Kargo Firması`=kargo_turu)%>%summarise(toplam_gonderi_sayisi=n(),ortalama_teslim_suresi=mean(toplam_teslim_suresi_saat,na.rm=TRUE),dinamik_basari_orani=mean(basari_flag,na.rm=TRUE),sikayet_orani_yuzde=mean(sikayet_var_mi,na.rm=TRUE)*100); return(summary)
-    };
-    ana_ozet<-get_summary_for_period(input$ana_donem_secimi[1],input$ana_donem_secimi[2]); karsilastirma_ozet<-get_summary_for_period(input$karsilastirma_donem_secimi[1],input$karsilastirma_donem_secimi[2]); if(is.null(ana_ozet)||is.null(karsilastirma_ozet)){ showNotification("Seçilen tarih aralıklarından birinde veya her ikisinde veri bulunamadı.",type="warning",duration=7); karsilastirma_verisi(NULL); return() }; ana_etiket<-format_date_range(input$ana_donem_secimi); karsilastirma_etiket<-format_date_range(input$karsilastirma_donem_secimi); birlesik_veri<-full_join(ana_ozet,karsilastirma_ozet,by="Kargo Firması",suffix=c("_ana","_karsilastirma")); karsilastirma_verisi(list(data=birlesik_veri,ana_etiket=ana_etiket,karsilastirma_etiket=karsilastirma_etiket)) })
-    output$karsilastirma_tablosu <- DT::renderDataTable({ req(karsilastirma_verisi()); req(!is.null(input$secilen_metrikler) && length(input$secilen_metrikler) > 0); ham_veri <- karsilastirma_verisi()$data; ana_etiket <- karsilastirma_verisi()$ana_etiket; karsilastirma_etiket <- karsilastirma_verisi()$karsilastirma_etiket; final_table <- ham_veri %>% select(`Kargo Firması`); metric_names_map <- c("toplam_gonderi_sayisi" = "Hacim", "ortalama_teslim_suresi" = "Ort. Hız", "dinamik_basari_orani" = "Başarı %", "sikayet_orani_yuzde" = "Şikayet %"); for (metric_value in input$secilen_metrikler) { metric_name <- metric_names_map[[metric_value]]; col_ana_raw <- paste0(metric_value, "_ana"); col_karsilastirma_raw <- paste0(metric_value, "_karsilastirma"); col_ana_yeni_ad <- paste0(metric_name, " (", ana_etiket, ")"); col_karsilastirma_yeni_ad <- paste0(metric_name, " (", karsilastirma_etiket, ")"); col_degisim_yeni_ad <- paste(metric_name, "Değişim (%)"); temp_df <- ham_veri %>% select(`Kargo Firması`, any_of(c(col_ana_raw, col_karsilastirma_raw))) %>% mutate( !!col_ana_raw := replace_na(.data[[col_ana_raw]], 0), !!col_karsilastirma_raw := replace_na(.data[[col_karsilastirma_raw]], 0), `Değişim` = if_else(.data[[col_ana_raw]] == 0, NA_real_, (.data[[col_karsilastirma_raw]] - .data[[col_ana_raw]]) / .data[[col_ana_raw]]) ) %>% rename( !!col_ana_yeni_ad := all_of(col_ana_raw), !!col_karsilastirma_yeni_ad := all_of(col_karsilastirma_raw), !!col_degisim_yeni_ad := `Değişim` ); final_table <- left_join(final_table, temp_df, by = "Kargo Firması") }; dt <- DT::datatable(final_table, rownames = FALSE, options = list(scrollX = TRUE, paging = FALSE, searching = TRUE, info = FALSE)); yuzde_cols_selector <- str_ends(names(final_table), fixed(" (%)")); if (any(yuzde_cols_selector)) { dt <- dt %>% formatPercentage(which(yuzde_cols_selector), digits = 2) }; basari_cols_selector <- str_detect(names(final_table), "Başarı %"); if (any(basari_cols_selector)) { dt <- dt %>% formatPercentage(which(basari_cols_selector), digits = 2) }; ondalikli_cols_selector <- str_detect(names(final_table), "Ort. Hız") & !str_detect(names(final_table), "Değişim"); if (any(ondalikli_cols_selector)) { dt <- dt %>% formatRound(which(ondalikli_cols_selector), digits = 2) }; return(dt)  }, server = FALSE)
-    observeEvent(input$detay_tablosu_rows_selected, { req(input$detay_tablosu_rows_selected); selected_row_index <- input$detay_tablosu_rows_selected; karsilastirma_verisi_orijinal <- ilce_karsilastirma_data() %>% mutate(sikayet_orani_gosterim = paste0(round(sikayet_orani_yuzde, 1), "% (", toplam_sikayet_sayisi, " adet)"), ortalama_desi = round(ortalama_desi, 2), gonderi_sayisi_gosterim = paste0(toplam_gonderi_sayisi, " (%", round(hacim_yuzdesi, 0), ")")) %>% arrange(desc(Bayes_EPS)); secilen_firma <- karsilastirma_verisi_orijinal %>% slice(selected_row_index) %>% pull(kargo_turu); secilen_sehir <- input$sehir_secimi_tab1; secilen_ilce <- input$ilce_secimi_tab1; detay_verisi <- ham_veri_temiz() %>% filter(kargo_turu == secilen_firma); if (secilen_ilce == "all_districts") { detay_verisi <- detay_verisi %>% filter(sehir == secilen_sehir); bolge_adi <- str_to_upper(secilen_sehir, "tr") } else { detay_verisi <- detay_verisi %>% filter(sehir == secilen_sehir, ilce == secilen_ilce); bolge_adi <- paste(str_to_upper(secilen_sehir, "tr"), "-", str_to_upper(secilen_ilce, "tr")) }; detay_verisi_final <- detay_verisi %>% select(`Kargo No` = kargo_no, `Durum` = kargo_durumu, `Teslim Süresi (Saat)` = toplam_teslim_suresi_saat, `Tahmini Süre (Saat)` = yeni_max_teslimat_suresi, `Şikayet Var Mı?` = sikayet_var_mi, `Son Hareket Tarihi` = son_islem_tarihi) %>% arrange(desc(`Teslim Süresi (Saat)`)); showModal(modalDialog(title = paste0(secilen_firma, " - ", bolge_adi, " Bölgesi Sipariş Detayları"), DT::dataTableOutput(ns("siparis_detay_tablosu")), footer = modalButton("Kapat"), size = "l", easyClose = TRUE)); output$siparis_detay_tablosu <- DT::renderDataTable({ DT::datatable(detay_verisi_final, rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE)) }) })
-    observeEvent(input$firma_karne_tablosu_rows_selected, { req(input$firma_karne_tablosu_rows_selected); selected_row_index <- input$firma_karne_tablosu_rows_selected; secilen_firma <- input$secilen_firma_karne; karne_data_guncel <- firma_karne_tablo_verisi(); secilen_sehir <- karne_data_guncel %>% slice(selected_row_index) %>% pull(sehir); secilen_ilce <- karne_data_guncel %>% slice(selected_row_index) %>% pull(ilce); detay_verisi <- ham_veri_temiz() %>% filter(kargo_turu == secilen_firma, sehir == secilen_sehir, ilce == secilen_ilce); detay_verisi_final <- detay_verisi %>% select(`Kargo No` = kargo_no, `Durum` = kargo_durumu, `Teslim Süresi (Saat)` = toplam_teslim_suresi_saat, `Tahmini Süre (Saat)` = yeni_max_teslimat_suresi, `Şikayet Var Mı?` = sikayet_var_mi, `Son Hareket Tarihi` = son_islem_tarihi) %>% arrange(desc(`Teslim Süresi (Saat)`)); bolge_adi <- paste(str_to_upper(secilen_sehir, "tr"), "-", str_to_upper(secilen_ilce, "tr")); showModal(modalDialog(title = paste0(secilen_firma, " - ", bolge_adi, " Bölgesi Sipariş Detayları"), DT::dataTableOutput(ns("siparis_detay_tablosu_karne")), footer = modalButton("Kapat"), size = "l", easyClose = TRUE)); output$siparis_detay_tablosu_karne <- DT::renderDataTable({ DT::datatable(detay_verisi_final, rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE)) }) })
-    observeEvent(input$marka_analizi_tablosu_rows_selected, { req(input$marka_analizi_tablosu_rows_selected, input$secilen_marka_analizi, input$marka_analizi_secilen_il); selected_row_data <- marka_analizi_data()[input$marka_analizi_tablosu_rows_selected, ]; secilen_firma <- selected_row_data$kargo_turu; secilen_marka <- input$secilen_marka_analizi; detay_verisi <- ham_veri_temiz() %>% filter(gonderici == secilen_marka, kargo_turu == secilen_firma); bolge_adi <- if (input$marka_analizi_secilen_il != "all_cities") { if (!is.null(input$marka_analizi_secilen_ilce) && input$marka_analizi_secilen_ilce != "all_districts") { paste(str_to_upper(input$marka_analizi_secilen_il, "tr"), "-", str_to_upper(input$marka_analizi_secilen_ilce, "tr")) } else { str_to_upper(input$marka_analizi_secilen_il, "tr") } } else { "Tüm Türkiye" }; if (input$marka_analizi_secilen_il != "all_cities") { detay_verisi <- detay_verisi %>% filter(sehir == input$marka_analizi_secilen_il); if (!is.null(input$marka_analizi_secilen_ilce) && input$marka_analizi_secilen_ilce != "all_districts") { detay_verisi <- detay_verisi %>% filter(ilce == input$marka_analizi_secilen_ilce) } }; detay_verisi_final <- detay_verisi %>% select(`Kargo No` = kargo_no, `Durum` = kargo_durumu, `Teslim Süresi (Saat)` = toplam_teslim_suresi_saat, `Tahmini Süre (Saat)` = yeni_max_teslimat_suresi, `Şikayet Var Mı?` = sikayet_var_mi, `Son Hareket Tarihi` = son_islem_tarihi) %>% arrange(desc(`Teslim Süresi (Saat)`)); modal_title <- paste0(secilen_marka, " | ", secilen_firma, " | ", bolge_adi, " Gönderi Detayları"); showModal(modalDialog(title = modal_title, DT::dataTableOutput(ns("siparis_detay_tablosu_marka")), footer = modalButton("Kapat"), size = "l", easyClose = TRUE)); output$siparis_detay_tablosu_marka <- DT::renderDataTable({ DT::datatable(detay_verisi_final, rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE)) }) })
-    observeEvent(input$sikayet_analizi_tablosu_rows_selected, { req(input$sikayet_analizi_tablosu_rows_selected, ham_veri_temiz()); selected_row_index <- input$sikayet_analizi_tablosu_rows_selected; summary_data <- sikayet_analizi_ozet_verisi(); req(nrow(summary_data) >= selected_row_index); selected_row <- summary_data %>% slice(selected_row_index); if (input$sikayet_firma_secimi == "all_companies") { secilen_firma <- selected_row %>% pull(kargo_turu); detay_verisi <- ham_veri_temiz() %>% filter(kargo_turu == secilen_firma, sikayet_var_mi == TRUE); modal_title <- paste(secilen_firma, "için Şikayetli Gönderi Detayları") } else { secilen_sehir <- selected_row %>% pull(sehir); secilen_ilce <- selected_row %>% pull(ilce); detay_verisi <- ham_veri_temiz() %>% filter(sehir == secilen_sehir, ilce == secilen_ilce, kargo_turu == input$sikayet_firma_secimi, sikayet_var_mi == TRUE); modal_title <- paste(input$sikayet_firma_secimi, "-", str_to_upper(secilen_sehir, "tr"), str_to_upper(secilen_ilce, "tr"), "Bölgesi Şikayet Detayları") }; if (input$sikayet_sehir_secimi != "all_cities") { detay_verisi <- detay_verisi %>% filter(sehir == input$sikayet_sehir_secimi) }; detay_verisi_final <- detay_verisi %>% select(`Kargo No` = kargo_no, `Marka`=gonderici, `Durum` = kargo_durumu, `Teslim Süresi (Saat)` = toplam_teslim_suresi_saat, `Tahmini Süre (Saat)` = yeni_max_teslimat_suresi, `Son Hareket Tarihi` = son_islem_tarihi) %>% arrange(desc(`Son Hareket Tarihi`)); showModal(modalDialog(title = modal_title, DT::dataTableOutput(ns("siparis_detay_tablosu_sikayet")), footer = modalButton("Kapat"), size = "l", easyClose = TRUE)); output$siparis_detay_tablosu_sikayet <- DT::renderDataTable({ DT::datatable(detay_verisi_final, rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE)) }) })
-    
-    # --- DİNAMİK İNDİRME PANELİ (UI) - TAM VE EKSİKSİZ HALİ ---
-    download_ui <- reactive({
-      tagList(
-        # <<< EKSİK OLAN 1. BÖLÜM GERİ EKLENDİ >>>
-        div(style = "margin-bottom: 20px;",
-            p(strong("Temel Analiz Raporları")),
-            p(tags$small("Analizin ana çıktılarını içeren standart raporlar.")),
-            checkboxGroupInput(ns("download_choices_xlsx"), label=NULL, choices = c("Temel Analiz ve Skorlar" = "b2c_sonuclar", "Aykırı Değer Raporu" = "b2c_aykiri", "Bölgesel Hız Karşılaştırma" = "b2c_hiz_raporu"), selected = c("b2c_sonuclar", "b2c_aykiri", "b2c_hiz_raporu")),
-            downloadButton(ns("download_data_button_xlsx"), "Seçilen Temel Raporları İndir", class="btn-success btn-block")
-        ),
-        
-        # <<< GÜNCELLEDİĞİMİZ 2. BÖLÜM >>>
-        div(style = "margin-bottom: 20px;",
-            p(strong("İnteraktif Analiz Raporları")),
-            p(tags$small("Aktif sekmelerde gördüğünüz, filtrelenmiş analiz sonuçlarını indirin.")),
-            downloadButton(ns("download_simulator_data"), "Ağırlık Simülatörü Sonucunu İndir", class="btn-info btn-block"),
-            br(),
-            
-            # --- İlçe Karşılaştırma Butonu (Dinamik) ---
-            if(isTRUE(can_download_ilce())) {
-              downloadButton(ns("download_ilce_karsilastirma_data"), "İlçe Karşılaştırma Sonucunu İndir", class="btn-info btn-block")
-            } else {
-              tags$div(class = "btn btn-info btn-block disabled", title = "Bu raporu indirmek için önce 'İlçe Karşılaştırma' sekmesinde bir analiz yapmalısınız.", "İlçe Karşılaştırma Sonucu")
-            },
-            br(),
-            
-            # --- Firma Karnesi Butonu (Dinamik) ---
-            if(isTRUE(can_download_karne())) {
-              downloadButton(ns("download_firma_karne_data"), "Firma Karnesi Sonucunu İndir", class="btn-info btn-block")
-            } else {
-              tags$div(class = "btn btn-info btn-block disabled", title = "Bu raporu indirmek için önce 'Firma Karnesi' sekmesinde bir analiz yapmalısınız.", "Firma Karnesi Sonucu")
-            },
-            br(),
-            
-            # --- Marka Analizi Butonu (Dinamik) ---
-            if(isTRUE(can_download_marka())) {
-              downloadButton(ns("download_marka_analizi_data"), "Marka Analizi Sonucunu İndir", class="btn-info btn-block")
-            } else {
-              tags$div(class = "btn btn-info btn-block disabled", title = "Bu raporu indirmek için önce 'Marka Analizi' sekmesinde bir analiz yapmalısınız.", "Marka Analizi Sonucu")
-            },
-            br(),
-            
-            # --- Şikayet Analizi Butonu (Dinamik) ---
-            if(isTRUE(can_download_sikayet())) {
-              downloadButton(ns("download_sikayet_analizi_data"), "Şikayet Analizi Sonucunu İndir", class="btn-info btn-block")
-            } else {
-              tags$div(class = "btn btn-info btn-block disabled", title = "Bu raporu indirmek için önce 'Şikayet Analizi' sekmesinde bir analiz yapmalısınız.", "Şikayet Analizi Sonucu")
-            },
-            br(),
-            
-            downloadButton(ns("download_aykiri_deger_interaktif_data"), "Aykırı Değer Analizi Sonucunu İndir", class="btn-info btn-block"),
-            br(),
-            if(isTruthy(karsilastirma_verisi())) {
-              downloadButton(ns("download_comparison_data"), "Dinamik Karşılaştırma Sonucunu İndir", class="btn-info btn-block")
-            } else {
-              tags$div(class = "btn btn-info btn-block disabled", title = "Bu raporu indirmek için önce Dinamik Karşılaştırma sekmesinde bir analiz yapmalısınız.", "Dinamik Karşılaştırma Sonucu")
-            }
-        ),
-        
-        # <<< EKSİK OLAN 3. BÖLÜM GERİ EKLENDİ >>>
-        if(isTruthy(can_generate_brand_report())) {
-          div(
-            p(strong("Detaylı Kırılımlı Rapor")),
-            p(tags$small("Tüm markaların coğrafi kırılımlı performansını tek dosyada alın.")),
-            downloadButton(ns("download_data_button_csv"), "Tüm Marka Performansını İndir", class="btn-primary btn-block")
-          )
-        }
-      )
-    })
-    
-    # --- İNDİRME MANTIĞI (DOWNLOAD HANDLERS) ---
-    output$download_data_button_xlsx <- downloadHandler( filename = function() { paste0("Lojistik_Temel_Raporlar_B2C_", Sys.Date(), ".xlsx") }, content = function(file) { button_id <- ns("download_data_button_xlsx"); original_html <- "Seçilen Temel Raporları İndir"; on.exit({ shinyjs::html(id = button_id, html = original_html); shinyjs::removeClass(id = button_id, class = "btn-loading"); shinyjs::enable(id = button_id) }); shinyjs::html(id = button_id, html = "Raporlar Hazırlanıyor..."); shinyjs::addClass(id = button_id, class = "btn-loading"); shinyjs::disable(id = button_id); req(input$download_choices_xlsx); list_of_datasets <- list(); if ("b2c_sonuclar" %in% input$download_choices_xlsx) list_of_datasets[["Analiz_ve_Skorlar"]] <- ana_veri()$sonuclar; if ("b2c_aykiri" %in% input$download_choices_xlsx) list_of_datasets[["Aykırı_Değerler"]] <- aykiri_veriler(); if ("b2c_hiz_raporu" %in% input$download_choices_xlsx) list_of_datasets[["Bolgesel_Hiz_Karsilastirma"]] <- generate_speed_comparison_report(ana_veri()$sonuclar); if(length(list_of_datasets) > 0) { openxlsx::write.xlsx(list_of_datasets, file, asTable = TRUE, headerStyle = createStyle(textDecoration = "bold", fgFill = "#DDEBF7", halign = "center")) } else { showNotification("İndirilecek seçili bir rapor bulunamadı.", type = "warning", duration=4); file.create(file) } } )
-    output$download_data_button_csv <- downloadHandler( filename = function() { paste0("Lojistik_Marka_Raporu_Detayli_", Sys.Date(), ".csv") }, content = function(file) { button_id <- ns("download_data_button_csv"); original_html <- "Tüm Marka Performansını İndir"; on.exit({ shinyjs::html(id = button_id, html = original_html); shinyjs::removeClass(id = button_id, class = "btn-loading"); shinyjs::enable(id = button_id) }); shinyjs::html(id = button_id, html = "Veriler Hazırlanıyor..."); shinyjs::addClass(id = button_id, class = "btn-loading"); shinyjs::disable(id = button_id); req(ham_veri_temiz()); combined_df <- generate_all_brands_on_demand(ham_veri_temiz()); if(isTruthy(combined_df) && nrow(combined_df) > 0){ combined_df_final <- combined_df %>% select(`Marka Adı` = gonderici, `Şehir` = sehir, `İlçe` = ilce, `Kargo Firması` = kargo_turu, `Hacim Ayarlı Skor` = Bayes_EPS, `Ham Skor` = Ham_EPS, `Ortalama Teslim Süresi` = ortalama_teslim_suresi, `Başarı Oranı` = dinamik_basari_orani, `Şikayet Oranı` = sikayet_orani_yuzde, `Toplam Gönderi` = toplam_gonderi_sayisi); readr::write_csv(combined_df_final, file) } else { showNotification("İndirilecek marka verisi bulunamadı.", type="warning", duration=4); file.create(file) } } )
-    output$download_simulator_data <- downloadHandler( filename = function() { paste0("Lojistik_Agirlik_Simulatoru_Raporu_", Sys.Date(), ".xlsx") }, content = function(file) { button_id <- ns("download_simulator_data"); original_html <- "Ağırlık Simülatörü Sonucunu İndir"; on.exit({ shinyjs::html(id = button_id, html = original_html); shinyjs::removeClass(id = button_id, class = "btn-loading"); shinyjs::enable(id = button_id) }); shinyjs::html(id = button_id, html = "Rapor Hazırlanıyor..."); shinyjs::addClass(id = button_id, class = "btn-loading"); shinyjs::disable(id = button_id); req(simulator_data()); df_to_download <- simulator_data() %>% mutate(Bayes_Skor = round(Bayes_EPS * 100, 2), Ham_Skor = round(Ham_EPS_Ağırlıklı * 100, 2)) %>% select(`Kargo Firması` = kargo_turu, `Hacim Ayarlı Skor (0-100)` = Bayes_Skor, `Ham Skor (0-100)` = Ham_Skor, `Toplam Gönderi Sayısı` = Toplam_Gonderi, `Açıklama` = Bayes_Aciklama) %>% arrange(desc(`Hacim Ayarlı Skor (0-100)`)); openxlsx::write.xlsx(df_to_download, file, asTable = TRUE, headerStyle = createStyle(textDecoration = "bold", fgFill = "#DDEBF7", halign = "center")) } )
-    output$download_comparison_data <- downloadHandler( filename = function() { paste0("Lojistik_Dinamik_Karsilastirma_", Sys.Date(), ".xlsx") }, content = function(file) { button_id <- ns("download_comparison_data"); original_html <- "Dinamik Karşılaştırma Sonucunu İndir"; on.exit({ shinyjs::html(id = button_id, html = original_html); shinyjs::removeClass(id = button_id, class = "btn-loading"); shinyjs::enable(id = button_id) }); shinyjs::html(id = button_id, html = "Rapor Hazırlanıyor..."); shinyjs::addClass(id = button_id, class = "btn-loading"); shinyjs::disable(id = button_id); req(karsilastirma_verisi(), !is.null(input$secilen_metrikler) && length(input$secilen_metrikler) > 0); ham_veri <- karsilastirma_verisi()$data; ana_etiket <- karsilastirma_verisi()$ana_etiket; karsilastirma_etiket <- karsilastirma_verisi()$karsilastirma_etiket; final_table <- ham_veri %>% select(`Kargo Firması`); metric_names_map <- c("toplam_gonderi_sayisi" = "Hacim", "ortalama_teslim_suresi" = "Ort. Hız", "dinamik_basari_orani" = "Başarı Oranı", "sikayet_orani_yuzde" = "Şikayet Oranı"); for (metric_value in input$secilen_metrikler) { metric_name <- metric_names_map[[metric_value]]; col_ana_raw <- paste0(metric_value, "_ana"); col_karsilastirma_raw <- paste0(metric_value, "_karsilastirma"); col_ana_yeni_ad <- paste0(metric_name, " (", ana_etiket, ")"); col_karsilastirma_yeni_ad <- paste0(metric_name, " (", karsilastirma_etiket, ")"); col_degisim_yeni_ad <- paste(metric_name, "Değişim (%)"); temp_df <- ham_veri %>% mutate(across(everything(), ~replace_na(., 0))) %>% mutate(`Değişim` = if_else(.data[[col_ana_raw]] == 0, NA_real_, ((.data[[col_karsilastirma_raw]] - .data[[col_ana_raw]]) / .data[[col_ana_raw]]) * 100)) %>% rename(!!col_ana_yeni_ad := all_of(col_ana_raw), !!col_karsilastirma_yeni_ad := all_of(col_karsilastirma_raw), !!col_degisim_yeni_ad := `Değişim`) %>% select(`Kargo Firması`, all_of(c(col_ana_yeni_ad, col_karsilastirma_yeni_ad, col_degisim_yeni_ad))); final_table <- left_join(final_table, temp_df, by = "Kargo Firması") }; openxlsx::write.xlsx(final_table, file, asTable = TRUE, headerStyle = createStyle(textDecoration = "bold", fgFill = "#DDEBF7", halign = "center")) } )
-    
-    # 1. İlçe Karşılaştırma İndiricisi
-    output$download_ilce_karsilastirma_data <- downloadHandler(
-      filename = function() { paste0("Ilce_Karsilastirma_", input$sehir_secimi_tab1, "_", Sys.Date(), ".xlsx") },
-      content = function(file) {
-        report_data <- ilce_karsilastirma_data()
-        if (is.null(report_data) || nrow(report_data) == 0) {
-          showNotification("Bu filtre için indirilecek İlçe Karşılaştırma verisi bulunamadı.", type = "warning", duration = 5)
-          return(NULL)
-        }
-        df_to_download <- report_data %>%
-          mutate(
-            `Hacim Ayarlı Skor` = round(Bayes_EPS * 100, 2),
-            `Ham Skor` = round(Ham_EPS * 100, 2),
-            `Şikayet Oranı` = round(sikayet_orani_yuzde, 2)
-          ) %>%
-          select(
-            `Kargo Firması` = kargo_turu, `Hacim Ayarlı Skor`, `Ham Skor`, `Toplam Şikayet` = toplam_sikayet_sayisi,
-            `Şikayet Oranı`, `Ortalama Desi` = ortalama_desi, `Gönderi Sayısı` = toplam_gonderi_sayisi,
-            `Bölge Hacim Yüzdesi` = hacim_yuzdesi
-          )
-        openxlsx::write.xlsx(df_to_download, file, asTable = TRUE)
-      }
+    # `server_b2c_downloads.R` dosyası bir fonksiyon (`register_b2c_downloads`) 
+    # tanımladığı ve bir değer (`download_ui`) döndürdüğü için onu `source`
+    # edip, dönen `value`'sunu (yani fonksiyonun kendisini) çağırıyoruz.
+    download_ui_reactive <- source("server_b2c_downloads.R", local = TRUE)$value(
+      output = output, 
+      input = input, 
+      session = session, 
+      karsilastirma_verisi = karsilastirma_verisi
     )
     
-    # 2. Firma Karnesi İndiricisi
-    output$download_firma_karne_data <- downloadHandler(
-      filename = function() { paste0("Firma_Karnesi_", input$secilen_firma_karne, "_", Sys.Date(), ".xlsx") },
-      content = function(file) {
-        report_data <- firma_karne_tablo_verisi()
-        if (is.null(report_data) || nrow(report_data) == 0) {
-          showNotification("Bu filtre için indirilecek Firma Karnesi verisi bulunamadı.", type = "warning", duration = 5)
-          return(NULL)
-        }
-        df_to_download <- report_data %>%
-          mutate(
-            `Genel Skor (EPS)` = round(Ham_EPS * 100, 1),
-            `Başarı Oranı` = round(dinamik_basari_orani * 100, 1),
-            `Şikayet Oranı` = round(sikayet_orani_yuzde, 1),
-            `Ort. Teslim Süresi (Saat)` = round(ortalama_teslim_suresi, 2)
-          ) %>%
-          select(
-            `İlçe` = ilce, `Şehir` = sehir, `Genel Skor (EPS)`, `Başarı Oranı`, `Toplam Şikayet` = toplam_sikayet_sayisi,
-            `Şikayet Oranı`, `Ort. Teslim Süresi (Saat)`, `Gönderi Sayısı` = toplam_gonderi_sayisi
-          )
-        openxlsx::write.xlsx(df_to_download, file, asTable = TRUE)
-      }
+    # 3. TAHMİNLEME MODÜLÜNÜ ÇAĞIR
+    server_forecast_b2c(
+      id = "forecast_b2c_modul", 
+      processed_data = ana_veri,
+      theme_reactive = theme_reactive
     )
     
-    # 3. Marka Analizi İndiricisi
-    output$download_marka_analizi_data <- downloadHandler(
-      filename = function() { paste0("Marka_Analizi_", input$secilen_marka_analizi, "_", Sys.Date(), ".xlsx") },
-      content = function(file) {
-        report_data <- marka_analizi_data()
-        if (is.null(report_data) || nrow(report_data) == 0) {
-          showNotification("Bu filtre için indirilecek Marka Analizi verisi bulunamadı.", type = "warning", duration = 5)
-          return(NULL)
-        }
-        df_to_download <- report_data %>%
-          mutate(
-            `Hacim Ayarlı Skor` = round(Bayes_EPS * 100, 2),
-            `Ham Skor` = round(Ham_EPS * 100, 2),
-            `Başarı Oranı` = round(dinamik_basari_orani * 100, 2),
-            `Şikayet Oranı` = round(sikayet_orani_yuzde, 1)
-          ) %>%
-          select(
-            `Kargo Firması` = kargo_turu, `Hacim Ayarlı Skor`, `Ham Skor`, `Ort. Teslim Süresi (Saat)` = ortalama_teslim_suresi,
-            `Başarı Oranı`, `Toplam Şikayet` = toplam_sikayet_sayisi, `Şikayet Oranı`, `Toplam Gönderi` = toplam_gonderi_sayisi
-          )
-        openxlsx::write.xlsx(df_to_download, file, asTable = TRUE)
-      }
-    )
-    
-    # 4. Şikayet Analizi İndiricisi
-    output$download_sikayet_analizi_data <- downloadHandler(
-      filename = function() { paste0("Sikayet_Analizi_", Sys.Date(), ".xlsx") },
-      content = function(file) {
-        report_data <- sikayet_analizi_ozet_verisi()
-        if (is.null(report_data) || nrow(report_data) == 0) {
-          showNotification("Bu filtre için indirilecek Şikayet Analizi verisi bulunamadı.", type = "warning", duration = 5)
-          return(NULL)
-        }
-        openxlsx::write.xlsx(report_data, file, asTable = TRUE)
-      }
-    )
-    
-    # 5. Aykırı Değer İnteraktif Rapor İndiricisi
-    output$download_aykiri_deger_interaktif_data <- downloadHandler(
-      filename = function() { paste0("Aykiri_Deger_Analizi_", Sys.Date(), ".xlsx") },
-      content = function(file) {
-        report_data <- aykiri_veriler()
-        if (is.null(report_data) || nrow(report_data) == 0) {
-          showNotification("İndirilecek Aykırı Değer verisi bulunamadı.", type = "warning", duration = 5)
-          return(NULL)
-        }
-        summary_data <- if(input$aykiri_analiz_modu == "firma_ozet") {
-          aykiri_firma_ozet_verisi()
-        } else {
-          aykiri_grafik_verisi()
-        }
-        list_of_datasets <- list(
-          "Analiz Özeti" = summary_data,
-          "Tüm Aykırı Değer Detayları" = report_data
-        )
-        openxlsx::write.xlsx(list_of_datasets, file, asTable = TRUE)
-      }
-    )
-    
-    # --- RETURN LİSTESİ ---
+    # 4. app.R'a GEREKLİ DEĞERİ DÖNDÜR
     return(
       list(
-        download_ui = download_ui
+        download_ui = download_ui_reactive
       )
     )
     
