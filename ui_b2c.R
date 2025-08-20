@@ -1,40 +1,31 @@
 # =========================================================================
-#         B2C MODÜLÜ - KULLANICI ARAYÜZÜ (ANİMASYON DÜZELTMESİ)
+#         B2C MODÜLÜ - KULLANICI ARAYÜZÜ (DARK MODE GÜNCELLEMESİ)
 # =========================================================================
-# DEĞİŞİKLİK: 'shimmer_placeholder' yardımcı fonksiyonu, 'Firma Karnesi'
-#             sekmesindeki yükleme animasyonunu geri getirmek ve
-#             buton animasyonuyla tutarlı hale getirmek için güncellendi.
+# YENİLİK: 'Dinamik Karşılaştırma' sekmesindeki bilgilendirme paneli
+#          artık Karanlık Mod ile tam uyumlu CSS değişkenlerini kullanıyor.
 # =========================================================================
 
 # --- YARDIMCI FONKSİYON ---
-# === DEĞİŞİKLİK BURADA: Fonksiyon güncellendi ===
 shimmer_placeholder <- function(height = "100px", width = "100%") {
-  # Bu fonksiyon artık, app.R'da global olarak tanımlanmış olan
-  # .btn-loading sınıfının 'shimmer' animasyonunu yeniden kullanır.
-  # Böylece tutarlı ve çalışan bir animasyon elde ederiz.
   div(
-    class = "btn-loading", # Mevcut animasyon sınıfını kullan
+    class = "btn-loading",
     style = paste0(
       "height: ", height, "; ",
       "width: ", width, "; ",
-      "background-color: #f0f3f5; ", # Placeholder için bir arka plan rengi
-      "border-radius: 6px; ",         # Köşeleri yuvarlat
-      "opacity: 1; ",                 # Butonun opaklık stilini geçersiz kıl
-      "cursor: progress !important;"  # İmleci 'bekle' olarak ayarla
+      "background-color: #f0f3f5; ",
+      "border-radius: 6px; ",
+      "opacity: 1; ",
+      "cursor: progress !important;"
     )
   )
 }
-# =================================================
 
 # --- ANA UI FONKSİYONU ---
 ui_b2c <- function(id) {
   ns <- NS(id)
   
-  # app.R tarafından çağrıldığında, aşağıdaki tüm 'tabPanel'leri
-  # bir liste olarak döndürür. (Listenin içeriği değişmedi)
   list(
-    
-    # 1. SEKME: Ağırlık Simülatörü
+    # 1. SEKME: Ağırlık Simülatörü (Değişiklik Yok)
     tabPanel("Ağırlık Simülatörü", icon = icon("sliders-h"),
              sidebarLayout(
                sidebarPanel(width=3, 
@@ -63,7 +54,7 @@ ui_b2c <- function(id) {
              )
     ),
     
-    # 2. SEKME: İlçe Karşılaştırma
+    # 2. SEKME: İlçe Karşılaştırma (Değişiklik Yok)
     tabPanel("İlçe Karşılaştırma", icon = icon("map-marked-alt"),
              fluidRow(
                column(4, wellPanel(h4("Analiz Yapılacak Bölge"), uiOutput(ns("sehir_secimi_ui")), uiOutput(ns("ilce_secimi_ui")))),
@@ -76,7 +67,7 @@ ui_b2c <- function(id) {
              DT::dataTableOutput(ns("detay_tablosu"))
     ),
     
-    # 3. SEKME: Firma Karnesi
+    # 3. SEKME: Firma Karnesi (Değişiklik Yok)
     tabPanel("Firma Karnesi", icon = icon("book"),
              sidebarLayout(
                sidebarPanel(width=3,
@@ -115,7 +106,7 @@ ui_b2c <- function(id) {
              )
     ),
     
-    # ... Diğer sekmeler (Marka Analizi, Şikayet Analizi, vb.) değişmeden kalır ...
+    # 4. SEKME: Marka Analizi (Değişiklik Yok)
     tabPanel("Marka Analizi", icon = icon("tags"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -144,6 +135,8 @@ ui_b2c <- function(id) {
                )
              )
     ),
+    
+    # 5. SEKME: Şikayet Analizi (Değişiklik Yok)
     tabPanel("Şikayet Analizi", icon = icon("exclamation-triangle"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -168,6 +161,8 @@ ui_b2c <- function(id) {
                )
              )
     ),
+    
+    # 6. SEKME: Dinamik Karşılaştırma (GÜNCELLENDİ)
     tabPanel("Dinamik Karşılaştırma", icon = icon("exchange-alt"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -185,10 +180,36 @@ ui_b2c <- function(id) {
                mainPanel(width = 9, 
                          h3("Firma Bazında Metrik Karşılaştırma Raporu"),
                          hr(),
-                         DT::dataTableOutput(ns("karsilastirma_tablosu"))
+                         
+                         # <<< DEĞİŞİKLİK BURADA BAŞLIYOR >>>
+                         conditionalPanel(
+                           condition = "!output.comparison_results_exist",
+                           ns = ns,
+                           div(
+                             style = paste0(
+                               "text-align: center; padding: 50px; border-radius: 10px;",
+                               "background-color: var(--panel-bg-light);", # Temaya göre değişen arkaplan
+                               "border: 2px dashed var(--border-color-light);"  # Temaya göre değişen çerçeve
+                             ),
+                             icon("calendar-alt", "fa-3x", style="color: var(--text-color-light); opacity: 0.7;"),
+                             h4("Karşılaştırmaya Hazır", style="margin-top: 20px;"),
+                             p("Lütfen sol taraftaki menüden bir ana dönem ve bir karşılaştırma dönemi seçin."),
+                             p("Ayrıca tabloya eklemek istediğiniz en az bir metrik seçtiğinizden emin olun."),
+                             p(strong("Ardından 'Verileri Karşılaştır' butonuna basarak sonuçları bu alanda görün."))
+                           )
+                         ),
+                         
+                         conditionalPanel(
+                           condition = "output.comparison_results_exist",
+                           ns = ns,
+                           DT::dataTableOutput(ns("karsilastirma_tablosu"))
+                         )
+                         # <<< DEĞİŞİKLİK BURADA BİTİYOR >>>
                )
              )
     ),
+    
+    # 7. SEKME: Aykırı Değer Raporu (Değişiklik Yok)
     tabPanel("Aykırı Değer Raporu", icon = icon("chart-pie"),
              sidebarLayout(
                sidebarPanel(width = 4,
@@ -209,8 +230,8 @@ ui_b2c <- function(id) {
              DT::dataTableOutput(ns("aykiri_degerler_tablosu"))
     ),
     
-    # YENİ EKLENEN SEKME: Gelecek Tahmini
+    # 8. SEKME: Gelecek Tahmini (Değişiklik Yok)
     ui_forecast_b2c(ns("forecast_b2c_modul"))
     
-  ) # listenin sonu
+  )
 }
