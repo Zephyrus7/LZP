@@ -1,10 +1,3 @@
-# =========================================================================
-#       B2C MODÜLÜ - SUNUCU MANTIĞI (TAHMİNLEME ENTEGRE EDİLDİ)
-# =========================================================================
-# DEĞİŞİKLİK: server_forecast_b2c fonksiyonu çağrılarak, "Gelecek Tahmini"
-#             sekmesinin arka plan mantığı aktive edilmiştir.
-# =========================================================================
-
 server_b2c <- function(id, data, theme_reactive) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
@@ -55,6 +48,31 @@ server_b2c <- function(id, data, theme_reactive) {
     aykiri_veriler <- reactive({ ana_veri()$aykiri_degerler })
     ham_veri_temiz <- reactive({ ana_veri()$ham_veri_temiz })
     karsilastirma_verisi <- reactiveVal(NULL)
+    
+    # --- TEMEL REAKTİF VERİLER ---
+    ana_veri <- reactive({ req(data()); data() })
+    ana_veri_skorlari <- reactive({ ana_veri()$sonuclar %>% filter(!kargo_turu %in% b2b_turleri) })
+    aykiri_veriler <- reactive({ ana_veri()$aykiri_degerler })
+    ham_veri_temiz <- reactive({ ana_veri()$ham_veri_temiz })
+    karsilastirma_verisi <- reactiveVal(NULL)
+    
+    # ========================================================================
+    #       >>> YENİ EKLENEN BÖLÜM: İNDİRME BUTONU DURUM TAKİPÇİLERİ <<<
+    # ========================================================================
+    # Bu reaktif değerler, ilgili sekmedeki veri hesaplandığında TRUE olur.
+    # Varsayılan olarak FALSE (yani devre dışı) başlarlar.
+    can_download_ilce <- reactiveVal(FALSE)
+    can_download_karne <- reactiveVal(FALSE)
+    can_download_marka <- reactiveVal(FALSE)
+    can_download_sikayet <- reactiveVal(FALSE)
+    
+    # İlgili reaktif veri hesaplandığı anda bu takipçileri TRUE yap.
+    # `observe` kullanıyoruz çünkü bu işlemin bir çıktı üretmesi gerekmiyor.
+    observe({ req(ilce_karsilastirma_data()); can_download_ilce(TRUE) })
+    observe({ req(firma_karne_tablo_verisi()); can_download_karne(TRUE) })
+    observe({ req(marka_analizi_data()); can_download_marka(TRUE) })
+    observe({ req(sikayet_analizi_ozet_verisi()); can_download_sikayet(TRUE) })
+    # ========================================================================
     
     # --- UI RENDER FONKSİYONLARI ---
     output$sehir_secimi_ui <- renderUI({ req(ana_veri_skorlari()); sehir_listesi <- sort(unique(ana_veri_skorlari()$sehir)); selectInput(ns("sehir_secimi_tab1"), "1. Şehir Seçin:", choices = sehir_listesi) })
@@ -219,19 +237,57 @@ server_b2c <- function(id, data, theme_reactive) {
     observeEvent(input$marka_analizi_tablosu_rows_selected, { req(input$marka_analizi_tablosu_rows_selected, input$secilen_marka_analizi, input$marka_analizi_secilen_il); selected_row_data <- marka_analizi_data()[input$marka_analizi_tablosu_rows_selected, ]; secilen_firma <- selected_row_data$kargo_turu; secilen_marka <- input$secilen_marka_analizi; detay_verisi <- ham_veri_temiz() %>% filter(gonderici == secilen_marka, kargo_turu == secilen_firma); bolge_adi <- if (input$marka_analizi_secilen_il != "all_cities") { if (!is.null(input$marka_analizi_secilen_ilce) && input$marka_analizi_secilen_ilce != "all_districts") { paste(str_to_upper(input$marka_analizi_secilen_il, "tr"), "-", str_to_upper(input$marka_analizi_secilen_ilce, "tr")) } else { str_to_upper(input$marka_analizi_secilen_il, "tr") } } else { "Tüm Türkiye" }; if (input$marka_analizi_secilen_il != "all_cities") { detay_verisi <- detay_verisi %>% filter(sehir == input$marka_analizi_secilen_il); if (!is.null(input$marka_analizi_secilen_ilce) && input$marka_analizi_secilen_ilce != "all_districts") { detay_verisi <- detay_verisi %>% filter(ilce == input$marka_analizi_secilen_ilce) } }; detay_verisi_final <- detay_verisi %>% select(`Kargo No` = kargo_no, `Durum` = kargo_durumu, `Teslim Süresi (Saat)` = toplam_teslim_suresi_saat, `Tahmini Süre (Saat)` = yeni_max_teslimat_suresi, `Şikayet Var Mı?` = sikayet_var_mi, `Son Hareket Tarihi` = son_islem_tarihi) %>% arrange(desc(`Teslim Süresi (Saat)`)); modal_title <- paste0(secilen_marka, " | ", secilen_firma, " | ", bolge_adi, " Gönderi Detayları"); showModal(modalDialog(title = modal_title, DT::dataTableOutput(ns("siparis_detay_tablosu_marka")), footer = modalButton("Kapat"), size = "l", easyClose = TRUE)); output$siparis_detay_tablosu_marka <- DT::renderDataTable({ DT::datatable(detay_verisi_final, rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE)) }) })
     observeEvent(input$sikayet_analizi_tablosu_rows_selected, { req(input$sikayet_analizi_tablosu_rows_selected, ham_veri_temiz()); selected_row_index <- input$sikayet_analizi_tablosu_rows_selected; summary_data <- sikayet_analizi_ozet_verisi(); req(nrow(summary_data) >= selected_row_index); selected_row <- summary_data %>% slice(selected_row_index); if (input$sikayet_firma_secimi == "all_companies") { secilen_firma <- selected_row %>% pull(kargo_turu); detay_verisi <- ham_veri_temiz() %>% filter(kargo_turu == secilen_firma, sikayet_var_mi == TRUE); modal_title <- paste(secilen_firma, "için Şikayetli Gönderi Detayları") } else { secilen_sehir <- selected_row %>% pull(sehir); secilen_ilce <- selected_row %>% pull(ilce); detay_verisi <- ham_veri_temiz() %>% filter(sehir == secilen_sehir, ilce == secilen_ilce, kargo_turu == input$sikayet_firma_secimi, sikayet_var_mi == TRUE); modal_title <- paste(input$sikayet_firma_secimi, "-", str_to_upper(secilen_sehir, "tr"), str_to_upper(secilen_ilce, "tr"), "Bölgesi Şikayet Detayları") }; if (input$sikayet_sehir_secimi != "all_cities") { detay_verisi <- detay_verisi %>% filter(sehir == input$sikayet_sehir_secimi) }; detay_verisi_final <- detay_verisi %>% select(`Kargo No` = kargo_no, `Marka`=gonderici, `Durum` = kargo_durumu, `Teslim Süresi (Saat)` = toplam_teslim_suresi_saat, `Tahmini Süre (Saat)` = yeni_max_teslimat_suresi, `Son Hareket Tarihi` = son_islem_tarihi) %>% arrange(desc(`Son Hareket Tarihi`)); showModal(modalDialog(title = modal_title, DT::dataTableOutput(ns("siparis_detay_tablosu_sikayet")), footer = modalButton("Kapat"), size = "l", easyClose = TRUE)); output$siparis_detay_tablosu_sikayet <- DT::renderDataTable({ DT::datatable(detay_verisi_final, rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE)) }) })
     
-    # --- DİNAMİK İNDİRME PANELİ ---
+    # --- DİNAMİK İNDİRME PANELİ (UI) - TAM VE EKSİKSİZ HALİ ---
     download_ui <- reactive({
       tagList(
+        # <<< EKSİK OLAN 1. BÖLÜM GERİ EKLENDİ >>>
         div(style = "margin-bottom: 20px;",
             p(strong("Temel Analiz Raporları")),
             p(tags$small("Analizin ana çıktılarını içeren standart raporlar.")),
             checkboxGroupInput(ns("download_choices_xlsx"), label=NULL, choices = c("Temel Analiz ve Skorlar" = "b2c_sonuclar", "Aykırı Değer Raporu" = "b2c_aykiri", "Bölgesel Hız Karşılaştırma" = "b2c_hiz_raporu"), selected = c("b2c_sonuclar", "b2c_aykiri", "b2c_hiz_raporu")),
             downloadButton(ns("download_data_button_xlsx"), "Seçilen Temel Raporları İndir", class="btn-success btn-block")
         ),
+        
+        # <<< GÜNCELLEDİĞİMİZ 2. BÖLÜM >>>
         div(style = "margin-bottom: 20px;",
             p(strong("İnteraktif Analiz Raporları")),
-            p(tags$small("Aktif sekmelerde gördüğünüz analiz sonuçlarını indirin.")),
+            p(tags$small("Aktif sekmelerde gördüğünüz, filtrelenmiş analiz sonuçlarını indirin.")),
             downloadButton(ns("download_simulator_data"), "Ağırlık Simülatörü Sonucunu İndir", class="btn-info btn-block"),
+            br(),
+            
+            # --- İlçe Karşılaştırma Butonu (Dinamik) ---
+            if(isTRUE(can_download_ilce())) {
+              downloadButton(ns("download_ilce_karsilastirma_data"), "İlçe Karşılaştırma Sonucunu İndir", class="btn-info btn-block")
+            } else {
+              tags$div(class = "btn btn-info btn-block disabled", title = "Bu raporu indirmek için önce 'İlçe Karşılaştırma' sekmesinde bir analiz yapmalısınız.", "İlçe Karşılaştırma Sonucu")
+            },
+            br(),
+            
+            # --- Firma Karnesi Butonu (Dinamik) ---
+            if(isTRUE(can_download_karne())) {
+              downloadButton(ns("download_firma_karne_data"), "Firma Karnesi Sonucunu İndir", class="btn-info btn-block")
+            } else {
+              tags$div(class = "btn btn-info btn-block disabled", title = "Bu raporu indirmek için önce 'Firma Karnesi' sekmesinde bir analiz yapmalısınız.", "Firma Karnesi Sonucu")
+            },
+            br(),
+            
+            # --- Marka Analizi Butonu (Dinamik) ---
+            if(isTRUE(can_download_marka())) {
+              downloadButton(ns("download_marka_analizi_data"), "Marka Analizi Sonucunu İndir", class="btn-info btn-block")
+            } else {
+              tags$div(class = "btn btn-info btn-block disabled", title = "Bu raporu indirmek için önce 'Marka Analizi' sekmesinde bir analiz yapmalısınız.", "Marka Analizi Sonucu")
+            },
+            br(),
+            
+            # --- Şikayet Analizi Butonu (Dinamik) ---
+            if(isTRUE(can_download_sikayet())) {
+              downloadButton(ns("download_sikayet_analizi_data"), "Şikayet Analizi Sonucunu İndir", class="btn-info btn-block")
+            } else {
+              tags$div(class = "btn btn-info btn-block disabled", title = "Bu raporu indirmek için önce 'Şikayet Analizi' sekmesinde bir analiz yapmalısınız.", "Şikayet Analizi Sonucu")
+            },
+            br(),
+            
+            downloadButton(ns("download_aykiri_deger_interaktif_data"), "Aykırı Değer Analizi Sonucunu İndir", class="btn-info btn-block"),
             br(),
             if(isTruthy(karsilastirma_verisi())) {
               downloadButton(ns("download_comparison_data"), "Dinamik Karşılaştırma Sonucunu İndir", class="btn-info btn-block")
@@ -239,6 +295,8 @@ server_b2c <- function(id, data, theme_reactive) {
               tags$div(class = "btn btn-info btn-block disabled", title = "Bu raporu indirmek için önce Dinamik Karşılaştırma sekmesinde bir analiz yapmalısınız.", "Dinamik Karşılaştırma Sonucu")
             }
         ),
+        
+        # <<< EKSİK OLAN 3. BÖLÜM GERİ EKLENDİ >>>
         if(isTruthy(can_generate_brand_report())) {
           div(
             p(strong("Detaylı Kırılımlı Rapor")),
@@ -250,10 +308,117 @@ server_b2c <- function(id, data, theme_reactive) {
     })
     
     # --- İNDİRME MANTIĞI (DOWNLOAD HANDLERS) ---
-    output$download_data_button_xlsx <- downloadHandler( filename = function() { paste0("Lojistik_Temel_Raporlar_B2C_", Sys.Date(), ".xlsx") }, content = function(file) { button_id <- ns("download_data_button_xlsx"); original_html <- "Seçilen Temel Raporları İndir"; on.exit({ shinyjs::html(id = button_id, html = original_html); shinyjs::removeClass(id = button_id, class = "btn-loading"); shinyjs::enable(id = button_id) }); shinyjs::html(id = button_id, html = "Raporlar Hazırlanıyor..."); shinyjs::addClass(id = button_id, class = "btn-loading"); shinyjs::disable(id = button_id); req(input$download_choices_xlsx); list_of_datasets <- list(); if ("b2c_sonuclar" %in% input$download_choices_xlsx) list_of_datasets[["Analiz_ve_Skorlar"]] <- ana_veri()$sonuclar; if ("b2c_aykiri" %in% input$download_choices_xlsx) list_of_datasets[["Aykırı_Değerler"]] <- aykiri_veriler(); if ("b2c_hiz_raporu" %in% input$download_choices_xlsx) list_of_datasets[["Bolgesel_Hiz_Karsilastirma"]] <- generate_speed_comparison_report(ana_veri()$sonuclar); if(length(list_of_datasets) > 0) { write.xlsx(list_of_datasets, file, asTable = TRUE, headerStyle = createStyle(textDecoration = "bold", fgFill = "#DDEBF7", halign = "center")) } else { showNotification("İndirilecek seçili bir rapor bulunamadı.", type = "warning", duration=4); file.create(file) } } )
+    output$download_data_button_xlsx <- downloadHandler( filename = function() { paste0("Lojistik_Temel_Raporlar_B2C_", Sys.Date(), ".xlsx") }, content = function(file) { button_id <- ns("download_data_button_xlsx"); original_html <- "Seçilen Temel Raporları İndir"; on.exit({ shinyjs::html(id = button_id, html = original_html); shinyjs::removeClass(id = button_id, class = "btn-loading"); shinyjs::enable(id = button_id) }); shinyjs::html(id = button_id, html = "Raporlar Hazırlanıyor..."); shinyjs::addClass(id = button_id, class = "btn-loading"); shinyjs::disable(id = button_id); req(input$download_choices_xlsx); list_of_datasets <- list(); if ("b2c_sonuclar" %in% input$download_choices_xlsx) list_of_datasets[["Analiz_ve_Skorlar"]] <- ana_veri()$sonuclar; if ("b2c_aykiri" %in% input$download_choices_xlsx) list_of_datasets[["Aykırı_Değerler"]] <- aykiri_veriler(); if ("b2c_hiz_raporu" %in% input$download_choices_xlsx) list_of_datasets[["Bolgesel_Hiz_Karsilastirma"]] <- generate_speed_comparison_report(ana_veri()$sonuclar); if(length(list_of_datasets) > 0) { openxlsx::write.xlsx(list_of_datasets, file, asTable = TRUE, headerStyle = createStyle(textDecoration = "bold", fgFill = "#DDEBF7", halign = "center")) } else { showNotification("İndirilecek seçili bir rapor bulunamadı.", type = "warning", duration=4); file.create(file) } } )
     output$download_data_button_csv <- downloadHandler( filename = function() { paste0("Lojistik_Marka_Raporu_Detayli_", Sys.Date(), ".csv") }, content = function(file) { button_id <- ns("download_data_button_csv"); original_html <- "Tüm Marka Performansını İndir"; on.exit({ shinyjs::html(id = button_id, html = original_html); shinyjs::removeClass(id = button_id, class = "btn-loading"); shinyjs::enable(id = button_id) }); shinyjs::html(id = button_id, html = "Veriler Hazırlanıyor..."); shinyjs::addClass(id = button_id, class = "btn-loading"); shinyjs::disable(id = button_id); req(ham_veri_temiz()); combined_df <- generate_all_brands_on_demand(ham_veri_temiz()); if(isTruthy(combined_df) && nrow(combined_df) > 0){ combined_df_final <- combined_df %>% select(`Marka Adı` = gonderici, `Şehir` = sehir, `İlçe` = ilce, `Kargo Firması` = kargo_turu, `Hacim Ayarlı Skor` = Bayes_EPS, `Ham Skor` = Ham_EPS, `Ortalama Teslim Süresi` = ortalama_teslim_suresi, `Başarı Oranı` = dinamik_basari_orani, `Şikayet Oranı` = sikayet_orani_yuzde, `Toplam Gönderi` = toplam_gonderi_sayisi); readr::write_csv(combined_df_final, file) } else { showNotification("İndirilecek marka verisi bulunamadı.", type="warning", duration=4); file.create(file) } } )
-    output$download_simulator_data <- downloadHandler( filename = function() { paste0("Lojistik_Agirlik_Simulatoru_Raporu_", Sys.Date(), ".xlsx") }, content = function(file) { button_id <- ns("download_simulator_data"); original_html <- "Ağırlık Simülatörü Sonucunu İndir"; on.exit({ shinyjs::html(id = button_id, html = original_html); shinyjs::removeClass(id = button_id, class = "btn-loading"); shinyjs::enable(id = button_id) }); shinyjs::html(id = button_id, html = "Rapor Hazırlanıyor..."); shinyjs::addClass(id = button_id, class = "btn-loading"); shinyjs::disable(id = button_id); req(simulator_data()); df_to_download <- simulator_data() %>% mutate(Bayes_Skor = round(Bayes_EPS * 100, 2), Ham_Skor = round(Ham_EPS_Ağırlıklı * 100, 2)) %>% select(`Kargo Firması` = kargo_turu, `Hacim Ayarlı Skor (0-100)` = Bayes_Skor, `Ham Skor (0-100)` = Ham_Skor, `Toplam Gönderi Sayısı` = Toplam_Gonderi, `Açıklama` = Bayes_Aciklama) %>% arrange(desc(`Hacim Ayarlı Skor (0-100)`)); write.xlsx(df_to_download, file, asTable = TRUE, headerStyle = createStyle(textDecoration = "bold", fgFill = "#DDEBF7", halign = "center")) } )
-    output$download_comparison_data <- downloadHandler( filename = function() { paste0("Lojistik_Dinamik_Karsilastirma_", Sys.Date(), ".xlsx") }, content = function(file) { button_id <- ns("download_comparison_data"); original_html <- "Dinamik Karşılaştırma Sonucunu İndir"; on.exit({ shinyjs::html(id = button_id, html = original_html); shinyjs::removeClass(id = button_id, class = "btn-loading"); shinyjs::enable(id = button_id) }); shinyjs::html(id = button_id, html = "Rapor Hazırlanıyor..."); shinyjs::addClass(id = button_id, class = "btn-loading"); shinyjs::disable(id = button_id); req(karsilastirma_verisi(), !is.null(input$secilen_metrikler) && length(input$secilen_metrikler) > 0); ham_veri <- karsilastirma_verisi()$data; ana_etiket <- karsilastirma_verisi()$ana_etiket; karsilastirma_etiket <- karsilastirma_verisi()$karsilastirma_etiket; final_table <- ham_veri %>% select(`Kargo Firması`); metric_names_map <- c("toplam_gonderi_sayisi" = "Hacim", "ortalama_teslim_suresi" = "Ort. Hız", "dinamik_basari_orani" = "Başarı Oranı", "sikayet_orani_yuzde" = "Şikayet Oranı"); for (metric_value in input$secilen_metrikler) { metric_name <- metric_names_map[[metric_value]]; col_ana_raw <- paste0(metric_value, "_ana"); col_karsilastirma_raw <- paste0(metric_value, "_karsilastirma"); col_ana_yeni_ad <- paste0(metric_name, " (", ana_etiket, ")"); col_karsilastirma_yeni_ad <- paste0(metric_name, " (", karsilastirma_etiket, ")"); col_degisim_yeni_ad <- paste(metric_name, "Değişim (%)"); temp_df <- ham_veri %>% mutate(across(everything(), ~replace_na(., 0))) %>% mutate(`Değişim` = if_else(.data[[col_ana_raw]] == 0, NA_real_, ((.data[[col_karsilastirma_raw]] - .data[[col_ana_raw]]) / .data[[col_ana_raw]]) * 100)) %>% rename(!!col_ana_yeni_ad := all_of(col_ana_raw), !!col_karsilastirma_yeni_ad := all_of(col_karsilastirma_raw), !!col_degisim_yeni_ad := `Değişim`) %>% select(`Kargo Firması`, all_of(c(col_ana_yeni_ad, col_karsilastirma_yeni_ad, col_degisim_yeni_ad))); final_table <- left_join(final_table, temp_df, by = "Kargo Firması") }; write.xlsx(final_table, file, asTable = TRUE, headerStyle = createStyle(textDecoration = "bold", fgFill = "#DDEBF7", halign = "center")) } )
+    output$download_simulator_data <- downloadHandler( filename = function() { paste0("Lojistik_Agirlik_Simulatoru_Raporu_", Sys.Date(), ".xlsx") }, content = function(file) { button_id <- ns("download_simulator_data"); original_html <- "Ağırlık Simülatörü Sonucunu İndir"; on.exit({ shinyjs::html(id = button_id, html = original_html); shinyjs::removeClass(id = button_id, class = "btn-loading"); shinyjs::enable(id = button_id) }); shinyjs::html(id = button_id, html = "Rapor Hazırlanıyor..."); shinyjs::addClass(id = button_id, class = "btn-loading"); shinyjs::disable(id = button_id); req(simulator_data()); df_to_download <- simulator_data() %>% mutate(Bayes_Skor = round(Bayes_EPS * 100, 2), Ham_Skor = round(Ham_EPS_Ağırlıklı * 100, 2)) %>% select(`Kargo Firması` = kargo_turu, `Hacim Ayarlı Skor (0-100)` = Bayes_Skor, `Ham Skor (0-100)` = Ham_Skor, `Toplam Gönderi Sayısı` = Toplam_Gonderi, `Açıklama` = Bayes_Aciklama) %>% arrange(desc(`Hacim Ayarlı Skor (0-100)`)); openxlsx::write.xlsx(df_to_download, file, asTable = TRUE, headerStyle = createStyle(textDecoration = "bold", fgFill = "#DDEBF7", halign = "center")) } )
+    output$download_comparison_data <- downloadHandler( filename = function() { paste0("Lojistik_Dinamik_Karsilastirma_", Sys.Date(), ".xlsx") }, content = function(file) { button_id <- ns("download_comparison_data"); original_html <- "Dinamik Karşılaştırma Sonucunu İndir"; on.exit({ shinyjs::html(id = button_id, html = original_html); shinyjs::removeClass(id = button_id, class = "btn-loading"); shinyjs::enable(id = button_id) }); shinyjs::html(id = button_id, html = "Rapor Hazırlanıyor..."); shinyjs::addClass(id = button_id, class = "btn-loading"); shinyjs::disable(id = button_id); req(karsilastirma_verisi(), !is.null(input$secilen_metrikler) && length(input$secilen_metrikler) > 0); ham_veri <- karsilastirma_verisi()$data; ana_etiket <- karsilastirma_verisi()$ana_etiket; karsilastirma_etiket <- karsilastirma_verisi()$karsilastirma_etiket; final_table <- ham_veri %>% select(`Kargo Firması`); metric_names_map <- c("toplam_gonderi_sayisi" = "Hacim", "ortalama_teslim_suresi" = "Ort. Hız", "dinamik_basari_orani" = "Başarı Oranı", "sikayet_orani_yuzde" = "Şikayet Oranı"); for (metric_value in input$secilen_metrikler) { metric_name <- metric_names_map[[metric_value]]; col_ana_raw <- paste0(metric_value, "_ana"); col_karsilastirma_raw <- paste0(metric_value, "_karsilastirma"); col_ana_yeni_ad <- paste0(metric_name, " (", ana_etiket, ")"); col_karsilastirma_yeni_ad <- paste0(metric_name, " (", karsilastirma_etiket, ")"); col_degisim_yeni_ad <- paste(metric_name, "Değişim (%)"); temp_df <- ham_veri %>% mutate(across(everything(), ~replace_na(., 0))) %>% mutate(`Değişim` = if_else(.data[[col_ana_raw]] == 0, NA_real_, ((.data[[col_karsilastirma_raw]] - .data[[col_ana_raw]]) / .data[[col_ana_raw]]) * 100)) %>% rename(!!col_ana_yeni_ad := all_of(col_ana_raw), !!col_karsilastirma_yeni_ad := all_of(col_karsilastirma_raw), !!col_degisim_yeni_ad := `Değişim`) %>% select(`Kargo Firması`, all_of(c(col_ana_yeni_ad, col_karsilastirma_yeni_ad, col_degisim_yeni_ad))); final_table <- left_join(final_table, temp_df, by = "Kargo Firması") }; openxlsx::write.xlsx(final_table, file, asTable = TRUE, headerStyle = createStyle(textDecoration = "bold", fgFill = "#DDEBF7", halign = "center")) } )
+    
+    # 1. İlçe Karşılaştırma İndiricisi
+    output$download_ilce_karsilastirma_data <- downloadHandler(
+      filename = function() { paste0("Ilce_Karsilastirma_", input$sehir_secimi_tab1, "_", Sys.Date(), ".xlsx") },
+      content = function(file) {
+        report_data <- ilce_karsilastirma_data()
+        if (is.null(report_data) || nrow(report_data) == 0) {
+          showNotification("Bu filtre için indirilecek İlçe Karşılaştırma verisi bulunamadı.", type = "warning", duration = 5)
+          return(NULL)
+        }
+        df_to_download <- report_data %>%
+          mutate(
+            `Hacim Ayarlı Skor` = round(Bayes_EPS * 100, 2),
+            `Ham Skor` = round(Ham_EPS * 100, 2),
+            `Şikayet Oranı` = round(sikayet_orani_yuzde, 2)
+          ) %>%
+          select(
+            `Kargo Firması` = kargo_turu, `Hacim Ayarlı Skor`, `Ham Skor`, `Toplam Şikayet` = toplam_sikayet_sayisi,
+            `Şikayet Oranı`, `Ortalama Desi` = ortalama_desi, `Gönderi Sayısı` = toplam_gonderi_sayisi,
+            `Bölge Hacim Yüzdesi` = hacim_yuzdesi
+          )
+        openxlsx::write.xlsx(df_to_download, file, asTable = TRUE)
+      }
+    )
+    
+    # 2. Firma Karnesi İndiricisi
+    output$download_firma_karne_data <- downloadHandler(
+      filename = function() { paste0("Firma_Karnesi_", input$secilen_firma_karne, "_", Sys.Date(), ".xlsx") },
+      content = function(file) {
+        report_data <- firma_karne_tablo_verisi()
+        if (is.null(report_data) || nrow(report_data) == 0) {
+          showNotification("Bu filtre için indirilecek Firma Karnesi verisi bulunamadı.", type = "warning", duration = 5)
+          return(NULL)
+        }
+        df_to_download <- report_data %>%
+          mutate(
+            `Genel Skor (EPS)` = round(Ham_EPS * 100, 1),
+            `Başarı Oranı` = round(dinamik_basari_orani * 100, 1),
+            `Şikayet Oranı` = round(sikayet_orani_yuzde, 1),
+            `Ort. Teslim Süresi (Saat)` = round(ortalama_teslim_suresi, 2)
+          ) %>%
+          select(
+            `İlçe` = ilce, `Şehir` = sehir, `Genel Skor (EPS)`, `Başarı Oranı`, `Toplam Şikayet` = toplam_sikayet_sayisi,
+            `Şikayet Oranı`, `Ort. Teslim Süresi (Saat)`, `Gönderi Sayısı` = toplam_gonderi_sayisi
+          )
+        openxlsx::write.xlsx(df_to_download, file, asTable = TRUE)
+      }
+    )
+    
+    # 3. Marka Analizi İndiricisi
+    output$download_marka_analizi_data <- downloadHandler(
+      filename = function() { paste0("Marka_Analizi_", input$secilen_marka_analizi, "_", Sys.Date(), ".xlsx") },
+      content = function(file) {
+        report_data <- marka_analizi_data()
+        if (is.null(report_data) || nrow(report_data) == 0) {
+          showNotification("Bu filtre için indirilecek Marka Analizi verisi bulunamadı.", type = "warning", duration = 5)
+          return(NULL)
+        }
+        df_to_download <- report_data %>%
+          mutate(
+            `Hacim Ayarlı Skor` = round(Bayes_EPS * 100, 2),
+            `Ham Skor` = round(Ham_EPS * 100, 2),
+            `Başarı Oranı` = round(dinamik_basari_orani * 100, 2),
+            `Şikayet Oranı` = round(sikayet_orani_yuzde, 1)
+          ) %>%
+          select(
+            `Kargo Firması` = kargo_turu, `Hacim Ayarlı Skor`, `Ham Skor`, `Ort. Teslim Süresi (Saat)` = ortalama_teslim_suresi,
+            `Başarı Oranı`, `Toplam Şikayet` = toplam_sikayet_sayisi, `Şikayet Oranı`, `Toplam Gönderi` = toplam_gonderi_sayisi
+          )
+        openxlsx::write.xlsx(df_to_download, file, asTable = TRUE)
+      }
+    )
+    
+    # 4. Şikayet Analizi İndiricisi
+    output$download_sikayet_analizi_data <- downloadHandler(
+      filename = function() { paste0("Sikayet_Analizi_", Sys.Date(), ".xlsx") },
+      content = function(file) {
+        report_data <- sikayet_analizi_ozet_verisi()
+        if (is.null(report_data) || nrow(report_data) == 0) {
+          showNotification("Bu filtre için indirilecek Şikayet Analizi verisi bulunamadı.", type = "warning", duration = 5)
+          return(NULL)
+        }
+        openxlsx::write.xlsx(report_data, file, asTable = TRUE)
+      }
+    )
+    
+    # 5. Aykırı Değer İnteraktif Rapor İndiricisi
+    output$download_aykiri_deger_interaktif_data <- downloadHandler(
+      filename = function() { paste0("Aykiri_Deger_Analizi_", Sys.Date(), ".xlsx") },
+      content = function(file) {
+        report_data <- aykiri_veriler()
+        if (is.null(report_data) || nrow(report_data) == 0) {
+          showNotification("İndirilecek Aykırı Değer verisi bulunamadı.", type = "warning", duration = 5)
+          return(NULL)
+        }
+        summary_data <- if(input$aykiri_analiz_modu == "firma_ozet") {
+          aykiri_firma_ozet_verisi()
+        } else {
+          aykiri_grafik_verisi()
+        }
+        list_of_datasets <- list(
+          "Analiz Özeti" = summary_data,
+          "Tüm Aykırı Değer Detayları" = report_data
+        )
+        openxlsx::write.xlsx(list_of_datasets, file, asTable = TRUE)
+      }
+    )
     
     # --- RETURN LİSTESİ ---
     return(
