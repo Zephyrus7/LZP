@@ -1,13 +1,3 @@
-# =========================================================================
-#             ANA UYGULAMA - app.R (VERİ İNDİRME DÜZELTMESİ)
-# =========================================================================
-# DEĞİŞİKLİK:
-# 1. 'observeEvent' bloğuna, Statik Analiz (B2C/B2B) sonrası dinamik
-#    olarak "Veri İndir" sekmesini ekleyen mantık geri eklendi.
-# 2. Bu dinamik sekmenin içeriğini dolduran 'renderUI' bloğu
-#    sunucu mantığına geri eklendi.
-# =========================================================================
-
 #--- 1. MODÜLLERİ VE KONFİGÜRASYONU YÜKLE ---
 source("00_Config.R")
 source("00_DB_Connector.R") 
