@@ -47,7 +47,6 @@ server <- function(input, output, session) {
     })
   }, error = function(e) { list(min_date = Sys.Date(), max_date = Sys.Date()) })
   
-  # <<< YENİ: Canlı veri tabanı için tarih aralığı sorgusu eklendi >>>
   db_date_range_live <- tryCatch({
     poolWithTransaction(db_pool_live, function(conn) {
       if(dbExistsTable(conn, "orders")) {
@@ -60,7 +59,6 @@ server <- function(input, output, session) {
       } else { list(min_date = Sys.Date(), max_date = Sys.Date()) }
     })
   }, error = function(e) { list(min_date = Sys.Date(), max_date = Sys.Date()) })
-  # >>> BİTİŞ
   
   # Global reaktif değerler
   rv <- reactiveValues(data = NULL, tip = NULL, active_tabs = character(0), user_authenticated = FALSE)
@@ -104,20 +102,9 @@ server <- function(input, output, session) {
     paste("Canlı veri", format(as.Date(db_date_range_live$min_date),"%d-%m-%Y"), "ile", format(as.Date(db_date_range_live$max_date),"%d-%m-%Y"), "arasını kapsamaktadır.")
   })
   
-  # ========================================================================
-  #       >>> YENİ EKLENECEK KOD: CANLI VERİ SON GÜNCELLEME SAATİ <<<
-  # ========================================================================
-  # Bu çıktı, db_date_range_live'dan gelen maksimum tarihi (en son kayıt
-  # zamanını) alıp, saat bilgisini de içerecek şekilde formatlar.
   output$live_last_updated_time <- renderText({
     req(db_date_range_live$max_date)
-    
-    # Veritabanından gelen değeri tarih-saat objesine çevirip formatlıyoruz
-    formatted_time <- format(
-      as.POSIXct(db_date_range_live$max_date), 
-      "%d-%m-%Y %H:%M:%S"
-    )
-    
+    formatted_time <- format(as.POSIXct(db_date_range_live$max_date), "%d-%m-%Y %H:%M:%S")
     paste("Son Güncelleme:", formatted_time)
   })
   
@@ -147,6 +134,18 @@ server <- function(input, output, session) {
           .btn-loading { position: relative; opacity: 0.85; cursor: not-allowed !important; overflow: hidden; }
           .btn-loading::after { content: ''; position: absolute; top: 0; left: -50%; width: 200%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.725) 70%, rgba(255,255,255,0.925) 100%); animation: shimmer 1.75s infinite; border-radius: inherit; }
           @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+          /* <<< YENİ CSS SINIFI BURAYA EKLENDİ >>> */
+          .warning-panel { text-align: center; padding: 50px; border-radius: 10px; }
+          /* Açık Mod için Stiller */
+          .warning-panel { background-color: #fff9e6; border: 2px solid #ffd54f; }
+          .warning-panel .fa, .warning-panel h4, .warning-panel p { color: #5d4037 !important; }
+          .warning-panel .fa { color: #ffa000 !important; }
+          /* Karanlık Mod için Stiller */
+          body.dark-mode .warning-panel { background-color: #4d4127; border: 2px solid #a68b3a; }
+          body.dark-mode .warning-panel .fa, body.dark-mode .warning-panel h4, body.dark-mode .warning-panel p { color: #f5eeda !important; }
+          body.dark-mode .warning-panel .fa { color: #ffd54f !important; }
+
         ")))
       ),
       tabPanel("Giriş ve Ayarlar", icon = icon("cog"),
@@ -155,20 +154,11 @@ server <- function(input, output, session) {
                         wellPanel(
                           h4("1. Analiz Modunu Seçin"), radioButtons(ns("analiz_modu"), label = NULL, choices = c("Statik Analiz" = "statik", "Canlı Analiz" = "canli"), selected = "statik", inline = TRUE), hr(),
                           conditionalPanel("input.analiz_modu == 'statik'", ns = ns, h4("2. Analiz Veri Kapsamını Seçin"), radioButtons(ns("statik_veri_secimi"), label = NULL, choices = c("Tüm Veri" = "tumu", "Tarih Aralığı Seç" = "tarih_sec"), selected = "tumu", inline = TRUE), p(tags$small(em(textOutput(ns("db_date_range_display"))))), conditionalPanel(condition = "input.statik_veri_secimi == 'tarih_sec'", ns = ns, dateRangeInput(ns("tarih_araligi"), label = "Başlangıç - Bitiş Tarihi", start = floor_date(Sys.Date(), "year"), end = Sys.Date(), format = "dd-mm-yyyy", language = "tr")), hr(), h4("3. Analiz Tipini Seçin"), radioButtons(ns("analiz_tipi_statik"), label = NULL, choices = c("Bireysel (B2C)" = "B2C", "Kurumsal (B2B)" = "B2B"), inline = TRUE)),
-                          
-                          # <<< YENİ: Canlı Analiz paneli güncellendi >>>
                           conditionalPanel("input.analiz_modu == 'canli'", ns = ns,
-                                           # Mevcut tarih aralığı
                                            p(tags$small(em(textOutput(ns("db_date_range_display_live"))))),
-                                           
-                                           # YENİ EKLENEN SATIR: Son güncelleme saatini buraya ekliyoruz.
                                            p(tags$small(em(textOutput(ns("live_last_updated_time"))))),
-                                           
-                                           # Açıklama metni
                                            p(tags$small("Bu modül, en güncel operasyonel verileri kullanarak anlık bir analiz sunar."))
                           ),
-                          # >>> BİTİŞ
-                          
                           hr(),
                           div(id = ns("analiz_baslat_container"), onclick = sprintf("Shiny.setInputValue('%s', Math.random(), {priority: 'event'})", ns("analiz_baslat")), class = "btn btn-primary btn-block btn-progress-container", style = "padding: 8px 12px; font-size: 15px; line-height: 1.5; border-radius: 6px;", div(class = "btn-progress-fill", id=ns("progress_fill")), span(class = "btn-progress-text", id=ns("progress_text"), "Analizi Başlat"))
                         )
@@ -216,38 +206,20 @@ server <- function(input, output, session) {
       else if (analiz_tipi == "B2B") { rv$data <- analiz_et_ve_skorla_b2b(db_pool = db_pool_static, start_date = start_date, end_date = end_date, progress_updater = custom_progress_updater) }
       
     } else if (input$analiz_modu == "canli") {
-      # <<< YENİ: Canlı analiz artık kendi çektiği tarih aralığını kullanacak >>>
-      # Bu satır, start_date ve end_date'i sabit değerler yerine dinamik olarak ayarlar.
-      # Ancak, canlı analizin her zaman "tüm veriyi" analiz etmesi istendiği için,
-      # processor'a geniş bir tarih aralığı göndermeye devam etmek daha doğru bir yaklaşımdır.
-      # Processor içindeki `filter(veri_tarihi >= !!start_date)` zaten bu aralığı kullanır.
-      # Bu nedenle, bu blokta bir değişiklik yapmaya GEREK YOKTUR.
-      # `db_date_range_live` sadece GÖRSEL bilgilendirme içindir.
-      # >>> BİTİŞ
-      
       rv$tip <- "LIVE"
-      # Canlı analizin doğası gereği genellikle tüm ilgili veriyi (veya son N ayı) analiz etmesi beklenir.
-      # `analiz_et_ve_skorla_live` fonksiyonuna sabit/geniş bir aralık göndermek,
-      # bu mantığı korur. Arayüzde gösterilen tarih sadece bilgilendirme amaçlıdır.
       rv$data <- analiz_et_ve_skorla_live(db_pool = db_pool_live, start_date = as.Date(db_date_range_live$min_date), end_date = as.Date(db_date_range_live$max_date), progress_updater = custom_progress_updater)
     }
     
-    # ... (observeEvent(input$analiz_baslat, { ... }) bloğunun içindesiniz)
-    
     # Dinamik sekme ekleme mantığı
     if (!is.null(rv$data)) {
-      # --- 1. Analiz sekmelerini ekle (B2C, B2B veya Canlı) ---
       tab_list <- switch(rv$tip,
                          "B2C" = ui_b2c("b2c_modul"),
                          "B2B" = ui_b2b("b2b_modul"),
                          "LIVE" = ui_live("live_modul"))
       
-      # ÖNEMLİ: Artık sekmeleri eklerken 'select = FALSE' kullanıyoruz.
       lapply(tab_list, function(tab) appendTab(inputId = "main_navbar", tab, select = FALSE))
       rv$active_tabs <- sapply(tab_list, function(t) t$attribs$title)
       
-      
-      # --- 2. Eğer analiz Statik ise, "Veri İndir" sekmesini de ekle ---
       if (rv$tip %in% c("B2C", "B2B")) {
         download_tab_value <- "download_tab"
         appendTab(
@@ -267,12 +239,11 @@ server <- function(input, output, session) {
               )
             )
           ),
-          select = FALSE # Bu sekmeyi de seçili yapmıyoruz
+          select = FALSE
         )
         rv$active_tabs <- c(rv$active_tabs, download_tab_value)
       }
       
-      # --- 3. İstenen Landing Page'i BİLİNÇLİ OLARAK SEÇ ---
       landing_tab <- switch(rv$tip,
                             "B2C" = "Ağırlık Simülatörü",
                             "B2B" = "Kargo Firması Karnesi",
@@ -281,7 +252,7 @@ server <- function(input, output, session) {
       updateTabsetPanel(session, "main_navbar", selected = landing_tab)
       
     }
-  }) # observeEvent sonu
+  })
   
   # Dinamik UI'ı dolduran renderUI
   output$download_ui_placeholder <- renderUI({
@@ -290,7 +261,6 @@ server <- function(input, output, session) {
       req(b2c_server_result$download_ui)
       b2c_server_result$download_ui()
     } else if (rv$tip == "B2B") {
-      # Not: Artık B2B için de download_ui mevcut, bu kod çalışacaktır.
       req(b2b_server_result$download_ui)
       b2b_server_result$download_ui()
     }
