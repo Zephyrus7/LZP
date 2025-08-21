@@ -1,8 +1,9 @@
 # =========================================================================
-#         B2C MODÜLÜ - KULLANICI ARAYÜZÜ (DARK MODE GÜNCELLEMESİ)
+#         B2C MODÜLÜ - KULLANICI ARAYÜZÜ (NİHAİ YAPI)
 # =========================================================================
-# YENİLİK: 'Dinamik Karşılaştırma' sekmesindeki bilgilendirme paneli
-#          artık Karanlık Mod ile tam uyumlu CSS değişkenlerini kullanıyor.
+# YENİLİK: "Dinamik Karşılaştırma" sekmesindeki standart buton,
+#          "Analizi Başlat" butonundakine benzer şekilde animasyonlu
+#          bir yapı ile değiştirilmiştir.
 # =========================================================================
 
 # --- YARDIMCI FONKSİYON ---
@@ -25,8 +26,11 @@ ui_b2c <- function(id) {
   ns <- NS(id)
   
   list(
-    # 1. SEKME: Ağırlık Simülatörü (Değişiklik Yok)
+    # 1. SEKME: Ağırlık Simülatörü
     tabPanel("Ağırlık Simülatörü", icon = icon("sliders-h"),
+             
+             shinyjs::useShinyjs(),
+             
              sidebarLayout(
                sidebarPanel(width=3, 
                             h4("Genel Stratejik Öncelikler"), 
@@ -54,7 +58,7 @@ ui_b2c <- function(id) {
              )
     ),
     
-    # 2. SEKME: İlçe Karşılaştırma (Değişiklik Yok)
+    # 2. SEKME: İlçe Karşılaştırma
     tabPanel("İlçe Karşılaştırma", icon = icon("map-marked-alt"),
              fluidRow(
                column(4, wellPanel(h4("Analiz Yapılacak Bölge"), uiOutput(ns("sehir_secimi_ui")), uiOutput(ns("ilce_secimi_ui")))),
@@ -67,7 +71,7 @@ ui_b2c <- function(id) {
              DT::dataTableOutput(ns("detay_tablosu"))
     ),
     
-    # 3. SEKME: Firma Karnesi (Değişiklik Yok)
+    # 3. SEKME: Firma Karnesi
     tabPanel("Firma Karnesi", icon = icon("book"),
              sidebarLayout(
                sidebarPanel(width=3,
@@ -106,7 +110,7 @@ ui_b2c <- function(id) {
              )
     ),
     
-    # 4. SEKME: Marka Analizi (Değişiklik Yok)
+    # 4. SEKME: Marka Analizi
     tabPanel("Marka Analizi", icon = icon("tags"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -136,7 +140,7 @@ ui_b2c <- function(id) {
              )
     ),
     
-    # 5. SEKME: Şikayet Analizi (Değişiklik Yok)
+    # 5. SEKME: Şikayet Analizi
     tabPanel("Şikayet Analizi", icon = icon("exclamation-triangle"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -162,7 +166,7 @@ ui_b2c <- function(id) {
              )
     ),
     
-    # 6. SEKME: Dinamik Karşılaştırma (GÜNCELLENDİ)
+    # 6. SEKME: Dinamik Karşılaştırma
     tabPanel("Dinamik Karşılaştırma", icon = icon("exchange-alt"),
              sidebarLayout(
                sidebarPanel(width = 3,
@@ -175,41 +179,26 @@ ui_b2c <- function(id) {
                             h4("3. Tabloya Eklenecek Metrikleri Seçin"),
                             selectInput(ns("secilen_metrikler"), label = NULL, choices = c("Hacim" = "toplam_gonderi_sayisi", "Ortalama Teslim Süresi (Saat)" = "ortalama_teslim_suresi", "Başarı Oranı" = "dinamik_basari_orani", "Şikayet Oranı (%)" = "sikayet_orani_yuzde"), multiple = TRUE, selected = "toplam_gonderi_sayisi"),
                             hr(), 
-                            actionButton(ns("karsilastir_button"), "VERİLERİ KARŞILAŞTIR", icon = icon("exchange-alt"), class = "btn-success btn-lg btn-block")
+                            
+                            # <<< DEĞİŞİKLİK BURADA: Standart actionButton, özel div yapısıyla değiştirildi >>>
+                            div(id = ns("karsilastir_container"), 
+                                onclick = sprintf("Shiny.setInputValue('%s', Math.random(), {priority: 'event'})", ns("karsilastir_button")),
+                                class = "btn btn-success btn-block btn-progress-container", # <- 'btn-lg' kaldırıldı
+                                # style parametresi tamamen kaldırıldı, varsayılan stil daha zarif olacaktır.
+                                div(class = "btn-progress-fill", id = ns("karsilastir_progress_fill")),
+                                span(class = "btn-progress-text", id = ns("karsilastir_progress_text"), "Verileri Karşılaştır", icon = icon("exchange-alt")) # <- Metin düzenlendi
+                            )
+                            # actionButton(ns("karsilastir_button"), "VERİLERİ KARŞILAŞTIR", icon = icon("exchange-alt"), class = "btn-success btn-lg btn-block")
                ),
                mainPanel(width = 9, 
                          h3("Firma Bazında Metrik Karşılaştırma Raporu"),
                          hr(),
-                         
-                         # <<< DEĞİŞİKLİK BURADA BAŞLIYOR >>>
-                         conditionalPanel(
-                           condition = "!output.comparison_results_exist",
-                           ns = ns,
-                           div(
-                             style = paste0(
-                               "text-align: center; padding: 50px; border-radius: 10px;",
-                               "background-color: var(--panel-bg-light);", # Temaya göre değişen arkaplan
-                               "border: 2px dashed var(--border-color-light);"  # Temaya göre değişen çerçeve
-                             ),
-                             icon("calendar-alt", "fa-3x", style="color: var(--text-color-light); opacity: 0.7;"),
-                             h4("Karşılaştırmaya Hazır", style="margin-top: 20px;"),
-                             p("Lütfen sol taraftaki menüden bir ana dönem ve bir karşılaştırma dönemi seçin."),
-                             p("Ayrıca tabloya eklemek istediğiniz en az bir metrik seçtiğinizden emin olun."),
-                             p(strong("Ardından 'Verileri Karşılaştır' butonuna basarak sonuçları bu alanda görün."))
-                           )
-                         ),
-                         
-                         conditionalPanel(
-                           condition = "output.comparison_results_exist",
-                           ns = ns,
-                           DT::dataTableOutput(ns("karsilastirma_tablosu"))
-                         )
-                         # <<< DEĞİŞİKLİK BURADA BİTİYOR >>>
+                         uiOutput(ns("dynamic_comparison_main_panel_ui"))
                )
              )
     ),
     
-    # 7. SEKME: Aykırı Değer Raporu (Değişiklik Yok)
+    # 7. SEKME: Aykırı Değer Raporu
     tabPanel("Aykırı Değer Raporu", icon = icon("chart-pie"),
              sidebarLayout(
                sidebarPanel(width = 4,
@@ -230,7 +219,7 @@ ui_b2c <- function(id) {
              DT::dataTableOutput(ns("aykiri_degerler_tablosu"))
     ),
     
-    # 8. SEKME: Gelecek Tahmini (Değişiklik Yok)
+    # 8. SEKME: Gelecek Tahmini
     ui_forecast_b2c(ns("forecast_b2c_modul"))
     
   )

@@ -18,17 +18,29 @@ server_b2c <- function(id, data, theme_reactive) {
     karsilastirma_verisi <- reactiveVal(NULL)
     b2b_turleri <- c("Mağazaya Teslim", "Mağazalar Arası Transfer", "21")
     
-    # 2. TÜM ALT MODÜLLERİ YEREL ORTAMA YÜKLE
-    # `local = TRUE` sayesinde bu dosyaların içindeki kod, sanki buraya
-    # kopyalanmış gibi çalışır ve tüm değişken/reaktifler aynı ortamda olur.
-    source("server_b2c_reactives.R", local = TRUE)
-    source("server_b2c_outputs.R", local = TRUE)
-    source("server_b2c_observers.R", local = TRUE)
+    # 2. ALT MODÜLLERİ YÜKLE VE ÇAĞIR
     
-    # `server_b2c_downloads.R` dosyası bir fonksiyon (`register_b2c_downloads`) 
-    # tanımladığı ve bir değer (`download_ui`) döndürdüğü için onu `source`
-    # edip, dönen `value`'sunu (yani fonksiyonun kendisini) çağırıyoruz.
-    download_ui_reactive <- source("server_b2c_downloads.R", local = TRUE)$value(
+    # a. Reaktif hesaplamaları ortama yükle
+    source("server_b2c_reactives.R", local = TRUE)
+    
+    # b. Arayüz çıktılarını ortama yükle
+    source("server_b2c_outputs.R", local = TRUE)
+    
+    # c. Gözlemcileri (observers) içeren fonksiyonu yükle VE ÇAĞIR
+    #    Bu, shinyjs'in doğru çalışması için en sağlam yöntemdir.
+    source("server_b2c_observers.R", local = TRUE)
+    register_b2c_observers(
+      input = input,
+      output = output, # Modal pencerelerdeki tablolar için `output` gerekli
+      session = session,
+      karsilastirma_verisi = karsilastirma_verisi,
+      db_pool_static = db_pool_static,
+      b2b_turleri = b2b_turleri
+    )
+    
+    # d. İndirme fonksiyonunu yükle VE ÇAĞIR
+    source("server_b2c_downloads.R", local = TRUE)
+    download_ui_reactive <- register_b2c_downloads(
       output = output, 
       input = input, 
       session = session, 

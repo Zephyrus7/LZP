@@ -1,11 +1,8 @@
 # =========================================================================
 #                   B2C SERVER - ARAYÜZ ÇIKTILARI
 # =========================================================================
-# Görevi: Tüm renderUI, renderDataTable, renderPlot, renderText
-#         fonksiyonlarını barındırarak arayüz elemanlarını oluşturmak.
-# NOT: Bu dosyadaki kod, `server_b2c.R` içinde `source` edilir.
-#      Buradaki reaktifler (`simulator_data()`, `ilce_karsilastirma_data()` vb.)
-#      `server_b2c_reactives.R` dosyasında tanımlanmıştır.
+# YENİLİK: Dinamik Karşılaştırma sekmesi için `conditionalPanel` mantığı
+#          kaldırılıp yerine daha sağlam olan `renderUI` eklendi.
 # =========================================================================
 
 # --- UI RENDER FONKSİYONLARI (Filtreler vb.) ---
@@ -169,7 +166,31 @@ output$sikayet_analizi_tablosu <- DT::renderDataTable({
     formatRound('Şikayet Oranı (%)', digits = 2)
 })
 
-# 6. Dinamik Karşılaştırma Sekmesi
+# 6. Dinamik Karşılaştırma Sekmesi (GÜNCELLENDİ)
+# <<< DEĞİŞİKLİK BURADA: Yeni renderUI bloğu eklendi >>>
+output$dynamic_comparison_main_panel_ui <- renderUI({
+  veriler <- karsilastirma_verisi()
+  
+  if (!isTruthy(veriler)) {
+    # VERİ YOKSA: Bilgilendirme panelini oluştur
+    div(
+      style = paste0(
+        "text-align: center; padding: 50px; border-radius: 10px;",
+        "background-color: var(--panel-bg-light);",
+        "border: 2px dashed var(--border-color-light);"
+      ),
+      icon("calendar-alt", "fa-3x", style="color: var(--text-color-light); opacity: 0.7;"),
+      h4("Karşılaştırmaya Hazır", style="margin-top: 20px;"),
+      p("Lütfen sol taraftaki menüden bir ana dönem ve bir karşılaştırma dönemi seçin."),
+      p("Ayrıca tabloya eklemek istediğiniz en az bir metrik seçtiğinizden emin olun."),
+      p(strong("Ardından 'Verileri Karşılaştır' butonuna basarak sonuçları bu alanda görün."))
+    )
+  } else {
+    # VERİ VARSA: Sonuç tablosunu oluştur
+    DT::dataTableOutput(ns("karsilastirma_tablosu"))
+  }
+})
+
 output$karsilastirma_tablosu <- DT::renderDataTable({
   req(karsilastirma_verisi()); req(!is.null(input$secilen_metrikler) && length(input$secilen_metrikler) > 0)
   ham_veri <- karsilastirma_verisi()$data
