@@ -50,7 +50,7 @@ server_forecast_b2c <- function(id, processed_data, theme_reactive) {
       shinyjs::runjs(sprintf("$('#%s').css('pointer-events', 'none');", ns("forecast_container")))
       shinyjs::addClass(id = "forecast_container", class = "btn-loading")
       shinyjs::html(id = "forecast_progress_text", html = "Model Başlatılıyor...")
-      shinyjs::runjs(sprintf("$('#%s').css('width', '10%%');", ns("forecast_progress_fill")))
+      shinyjs::runjs(sprintf("$('#%s').css('width', '60%%');", ns("forecast_progress_fill")))
       
       aylik_veri_snap <- aylik_veri()
       firma_secimi_snap <- input$forecast_firma_secimi
