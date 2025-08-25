@@ -1,10 +1,15 @@
-# ui_live.R - GÜNCELLENMİŞ HAL (Toplam Sayı Göstergeleri Eklendi)
+# =...
+# YENİLİK: "Teslimat Performansı" sekmesi, iki ayrı tablo yerine
+#          tüm bilgileri birleştiren tek ve minimalist bir
+#          "Genel Performans Karnesi" tablosunu gösterecek şekilde
+#          yeniden tasarlandı.
+# =========================================================================
 
 ui_live <- function(id) {
   ns <- NS(id)
   
   list(
-    # --- SEKME 1: Teslimat Performansı (Güncellendi) ---
+    # --- SEKME 1: Teslimat Performansı (TAMAMEN YENİLENDİ) ---
     tabPanel(
       title = "Teslimat Performansı",
       icon = icon("truck-fast"),
@@ -12,29 +17,19 @@ ui_live <- function(id) {
         sidebarPanel(width = 3,
                      h4("Performans Filtreleri"),
                      uiOutput(ns("firma_filtre_ui_teslimat")),
-                     uiOutput(ns("marka_filtre_ui_teslimat")),
                      hr(),
-                     p(tags$small(em("Yukarıdaki filtrelere göre teslimat sürecinin adımlarını (Alım, Partnere Verme, Teslimat) analiz edin.")))
+                     p(tags$small(em("Yukarıdaki filtrelere göre taşıyıcıların genel performans karnesini analiz edin.")))
         ),
         mainPanel(width = 9,
-                  # <<< DEĞİŞİKLİK BURADA: Başlık ve sayı göstergesi bir div içine alındı >>>
-                  div(style = "display: flex; justify-content: space-between; align-items: center;",
-                      h3("Teslimat Süreç Adımlarının Performansı"),
-                      uiOutput(ns("teslimat_total_count_ui"))
-                  ),
-                  fluidRow(
-                    column(4, wellPanel(style="background-color: #eaf5ff", h5("Ort. Alım Süresi (Saat)"), h3(textOutput(ns("alim_suresi_val"))))),
-                    column(4, wellPanel(style="background-color: #fff4e2", h5("Ort. Partnere Verme Süresi (Saat)"), h3(textOutput(ns("partnere_verme_suresi_val"))))),
-                    column(4, wellPanel(style="background-color: #eaffee", h5("Ort. Partner Teslim Süresi (Saat)"), h3(textOutput(ns("partner_teslim_suresi_val")))))
-                  ),
-                  hr(),
-                  h4("Firma Bazında Süre Dağılımı"),
-                  DT::dataTableOutput(ns("teslimat_performans_table"))
+                  # YENİ YAPI: Tek, birleştirilmiş tablo
+                  h4("Genel Performans Karnesi"),
+                  p(tags$small("Tüm temel performans göstergelerinin (KPI) birleştirildiği özet rapor. 'Teslimat Hızı Dağılımı' sütunu, sırasıyla 0-24, 24-48, 48-72 ve 72+ saat aralıklarındaki gönderi oranını görsel olarak temsil eder.")),
+                  DT::dataTableOutput(ns("unified_performance_table"))
         )
       )
     ),
     
-    # --- SEKME 2: Operasyonel Alarmlar (Güncellendi) ---
+    # --- SEKME 2: Operasyonel Alarmlar (Değişiklik Yok) ---
     tabPanel(
       title = "Operasyonel Alarmlar",
       icon = icon("bell"),
@@ -49,7 +44,6 @@ ui_live <- function(id) {
                                   value = 3, min = 1, max = 30, step = 1)
         ),
         mainPanel(width = 9,
-                  # <<< DEĞİŞİKLİK BURADA: Başlık ve sayı göstergesi bir div içine alındı >>>
                   div(style = "display: flex; justify-content: space-between; align-items: center;",
                       h3("Açık Gönderilerin Anlık Durum Dağılımı"),
                       uiOutput(ns("operasyonel_total_count_ui"))
@@ -63,7 +57,7 @@ ui_live <- function(id) {
       )
     ),
     
-    # --- SEKME 3: İade Süreçleri (Güncellendi) ---
+    # --- SEKME 3: İade Süreçleri (Değişiklik Yok) ---
     tabPanel(
       title = "İade Süreçleri",
       icon = icon("undo"),
@@ -71,12 +65,10 @@ ui_live <- function(id) {
         sidebarPanel(width = 3,
                      h4("İade Filtreleri"),
                      uiOutput(ns("firma_filtre_ui_iade")),
-                     uiOutput(ns("marka_filtre_ui_iade")),
                      hr(),
                      p(tags$small(em("Yukarıdaki filtrelere göre iade sürecinin adımlarını analiz edin.")))
         ),
         mainPanel(width = 9,
-                  # <<< DEĞİŞİKLİK BURADA: Başlık ve sayı göstergesi bir div içine alındı >>>
                   div(style = "display: flex; justify-content: space-between; align-items: center;",
                       h3("İade Süreç Adımlarının Performansı"),
                       uiOutput(ns("iade_total_count_ui"))
@@ -95,7 +87,6 @@ ui_live <- function(id) {
     
     # --- SEKME 4: Tüm Siparişler Özeti (Değişiklik Yok) ---
     tabPanel(
-      # ... (Bu sekmenin içeriği aynı kalıyor) ...
       title = "Tüm Siparişler Özeti",
       icon = icon("archive"),
       fluidPage(

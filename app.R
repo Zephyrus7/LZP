@@ -133,9 +133,7 @@ server <- function(input, output, session) {
           .btn-progress-text { position: relative; z-index: 1; }
           .btn-loading { position: relative; opacity: 0.85; cursor: not-allowed !important; overflow: hidden; }
           .btn-loading::after { content: ''; position: absolute; top: 0; left: -50%; width: 200%; height: 100%; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 25%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.725) 70%, rgba(255,255,255,0.925) 100%); animation: shimmer 1.75s infinite; border-radius: inherit; }
-          @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-
-          /* <<< YENİ CSS SINIFI BURAYA EKLENDİ >>> */
+          
           .warning-panel { text-align: center; padding: 50px; border-radius: 10px; }
           /* Açık Mod için Stiller */
           .warning-panel { background-color: #fff9e6; border: 2px solid #ffd54f; }
@@ -145,6 +143,33 @@ server <- function(input, output, session) {
           body.dark-mode .warning-panel { background-color: #4d4127; border: 2px solid #a68b3a; }
           body.dark-mode .warning-panel .fa, body.dark-mode .warning-panel h4, body.dark-mode .warning-panel p { color: #f5eeda !important; }
           body.dark-mode .warning-panel .fa { color: #ffd54f !important; }
+
+          .badge { display: inline-block; min-width: 10px; padding: 5px 9px; font-size: 12px; font-weight: bold; line-height: 1; color: #fff; text-align: center; white-space: nowrap; vertical-align: middle; background-color: #777; border-radius: 10px; }
+          .badge-green { background-color: #5cb85c; }
+          .badge-red { background-color: #d9534f; }
+          .badge-yellow { background-color: #f0ad4e; }
+          .badge-grey { background-color: #aaa; color: #333; }
+
+          /* <<< YENİ: MİNİ ÇUBUK GRAFİK (SPARKLINE) STİLLERİ >>> */
+          .spark-bar-container {
+            display: flex;
+            width: 100%;
+            height: 20px;
+            background-color: var(--panel-bg-light);
+            border: 1px solid var(--border-color-light);
+            border-radius: 4px;
+            overflow: hidden;
+          }
+          .spark-bar-segment {
+            height: 100%;
+            transition: width 0.3s ease-in-out;
+          }
+          .spark-bar-green { background-color: #5cb85c; } /* 0-24h */
+          .spark-bar-blue { background-color: #5bc0de; }  /* 24-48h - Yeni renk */
+          .spark-bar-yellow { background-color: #f0ad4e; } /* 48-72h */
+          .spark-bar-red { background-color: #d9534f; }   /* 72h+ */
+
+          @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 
         ")))
       ),
