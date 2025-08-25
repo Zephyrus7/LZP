@@ -27,8 +27,6 @@ library(DBI)
 library(prophet)
 library(purrr)
 
-# === DEĞİŞİKLİK BURADA: YENİ PAKETLER EKLENDİ ===
-library(future)          # Arka planda R kodunu çalıştırmak için temel motor
-library(promises)        # 'future' paketini Shiny ile uyumlu hale getiren köprü
-library(shinycssloaders) # Çıktılar hesaplanırken otomatik yükleme animasyonları (spinner) gösterir
-# =================================================
+library(future)          
+library(promises)        
+library(shinycssloaders) 
